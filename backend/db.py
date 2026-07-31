@@ -1,6 +1,8 @@
 import sqlite3
 from pathlib import Path
 
+from backend.models import create_schema, seed_owners
+
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "brecho.db"
 
 
@@ -13,4 +15,9 @@ def get_connection() -> sqlite3.Connection:
 
 
 def init_db() -> None:
-    get_connection().close()
+    conn = get_connection()
+    try:
+        create_schema(conn)
+        seed_owners(conn)
+    finally:
+        conn.close()
