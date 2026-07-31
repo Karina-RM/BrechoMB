@@ -1,4 +1,5 @@
 import json
+import shutil
 import sqlite3
 from pathlib import Path
 from typing import List, Optional
@@ -186,5 +187,28 @@ def withdraw_item(item_id: int):
 
         row = conn.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
         return _row_to_item(row)
+    finally:
+        conn.close()
+
+
+@router.delete("/{item_id}", status_code=204)
+def delete_item(item_id: int):
+    # Only ever offered for a data-entry mistake, not a real removal — restricted to
+    # items with no history yet (never sold, never withdrawn), so there's nothing
+    # elsewhere (a sale, a split, a withdrawal record) that a delete could orphan.
+    conn = get_connection()
+    try:
+        row = conn.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
+        if row is None:
+            raise HTTPException(404, "peça não encontrada")
+        if row["status"] != "in_stock":
+            raise HTTPException(400, "só é possível excluir peças que ainda estão em estoque")
+
+        conn.execute("DELETE FROM items WHERE id = ?", (item_id,))
+        conn.commit()
+
+        photo_dir = PHOTOS_DIR / row["sku"]
+        if photo_dir.exists():
+            shutil.rmtree(photo_dir)
     finally:
         conn.close()

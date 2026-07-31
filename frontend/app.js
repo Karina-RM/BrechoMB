@@ -114,6 +114,7 @@ let ownerAName = "Dona A";
 let ownerBName = "Dona B";
 let ownerById = {};
 let currentSupplierDetailId = null;
+let currentItemDetailId = null;
 
 function formatDate(sqliteTimestamp) {
   const date = new Date(sqliteTimestamp.replace(" ", "T") + "Z");
@@ -212,8 +213,8 @@ function renderNav() {
           ${NAV_ITEMS.map(
             (item) => `
             <li>
-              <a href="#${item.view}" data-nav="${item.view}" class="group flex gap-x-3 rounded-md p-2 text-sm/6 font-semibold text-gray-700 hover:bg-gray-50 hover:text-indigo-600 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="size-6 shrink-0 text-gray-400 group-hover:text-indigo-600 dark:group-hover:text-white">
+              <a href="#${item.view}" data-nav="${item.view}" class="group flex gap-x-3 rounded-md p-2 text-sm/6 font-semibold text-gray-700 hover:bg-gray-50 hover:text-pink-600 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="size-6 shrink-0 text-gray-400 group-hover:text-pink-600 dark:group-hover:text-white">
                   ${item.path}
                 </svg>
                 ${item.label}
@@ -230,15 +231,15 @@ function renderNav() {
 }
 
 function setActiveNav(view) {
-  const activeClasses = ["bg-gray-50", "dark:bg-white/5", "text-indigo-600", "dark:text-white"];
+  const activeClasses = ["bg-gray-50", "dark:bg-white/5", "text-pink-600", "dark:text-white"];
   document.querySelectorAll("[data-nav]").forEach((link) => {
     const icon = link.querySelector("svg");
     if (link.dataset.nav === view) {
       link.classList.add(...activeClasses);
-      icon.classList.add("text-indigo-600", "dark:text-white");
+      icon.classList.add("text-pink-600", "dark:text-white");
     } else {
       link.classList.remove(...activeClasses);
-      icon.classList.remove("text-indigo-600", "dark:text-white");
+      icon.classList.remove("text-pink-600", "dark:text-white");
     }
   });
 }
@@ -367,6 +368,7 @@ async function loadInventory() {
       const tr = document.createElement("tr");
       if (item.status === "withdrawn") tr.classList.add("opacity-50");
       const canWithdraw = item.status === "in_stock" && item.supplier_id != null;
+      const canDelete = item.status === "in_stock";
       tr.innerHTML = `
         <td class="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-gray-900 sm:pl-0 dark:text-white">${item.sku}</td>
         <td class="extra-col px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${item.department ?? "—"}</td>
@@ -382,10 +384,15 @@ async function loadInventory() {
         <td class="px-3 py-4 text-sm whitespace-nowrap">${statusBadge(item.status)}</td>
         <td class="py-4 pr-4 pl-3 text-right text-sm font-medium whitespace-nowrap sm:pr-0">
           <div class="flex justify-end gap-4">
-            <a href="#items/${item.id}" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300">Detalhes</a>
+            <a href="#items/${item.id}" class="text-pink-600 hover:text-pink-900 dark:text-pink-400 dark:hover:text-pink-300">Detalhes</a>
             ${
               canWithdraw
                 ? `<button type="button" onclick="handleWithdraw(${item.id})" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">Retirar</button>`
+                : ""
+            }
+            ${
+              canDelete
+                ? `<button type="button" onclick="handleDeleteItem(${item.id})" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">Excluir</button>`
                 : ""
             }
           </div>
@@ -480,12 +487,12 @@ async function loadSuppliers() {
         <td class="px-3 py-4 text-sm whitespace-nowrap">
           <div class="flex items-center gap-2">
             <input type="text" inputmode="decimal" id="commission-input-${supplier.id}" value="${String(supplier.commission_pct).replace(".", ",")}"
-              class="w-20 rounded-md bg-white px-2 py-1 text-sm text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10" />
-            <button type="button" onclick="handleCommissionSave(${supplier.id})" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300">Salvar</button>
+              class="w-20 rounded-md bg-white px-2 py-1 text-sm text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 dark:bg-white/5 dark:text-white dark:outline-white/10" />
+            <button type="button" onclick="handleCommissionSave(${supplier.id})" class="text-pink-600 hover:text-pink-900 dark:text-pink-400 dark:hover:text-pink-300">Salvar</button>
           </div>
         </td>
         <td class="py-4 pr-4 pl-3 text-right text-sm font-medium whitespace-nowrap sm:pr-0">
-          <a href="#suppliers/${supplier.id}" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300">Detalhes</a>
+          <a href="#suppliers/${supplier.id}" class="text-pink-600 hover:text-pink-900 dark:text-pink-400 dark:hover:text-pink-300">Detalhes</a>
         </td>
       `;
       body.appendChild(tr);
@@ -570,10 +577,12 @@ function detailRow(label, value) {
 
 async function showItemDetail(itemId) {
   const item = await fetch(`/api/items/${itemId}`).then((r) => r.json());
+  currentItemDetailId = itemId;
 
   document.getElementById("item-detail-sku").textContent = item.sku;
   document.getElementById("item-detail-title").textContent = item.sku;
   document.getElementById("item-detail-status").innerHTML = statusBadge(item.status);
+  document.getElementById("item-detail-delete").hidden = item.status !== "in_stock";
 
   const photosEl = document.getElementById("item-detail-photos");
   photosEl.innerHTML = item.photo_paths
@@ -634,6 +643,25 @@ async function handleWithdraw(itemId) {
     if (currentSupplierDetailId) await showSupplierDetail(currentSupplierDetailId);
   } catch (err) {
     showAlert("inventory-alert-slot", err.message, "error");
+  }
+}
+
+async function handleDeleteItem(itemId) {
+  if (!confirm("Excluir esta peça? Essa ação não pode ser desfeita.")) return;
+  const onDetailView = location.hash.startsWith(`#items/${itemId}`);
+  try {
+    const res = await fetch(`/api/items/${itemId}`, { method: "DELETE" });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(describeApiError(err, "não foi possível excluir a peça"));
+    }
+    if (onDetailView) {
+      location.hash = "#inventory";
+    } else {
+      await loadInventory();
+    }
+  } catch (err) {
+    showAlert(onDetailView ? "item-detail-alert-slot" : "inventory-alert-slot", err.message, "error");
   }
 }
 
