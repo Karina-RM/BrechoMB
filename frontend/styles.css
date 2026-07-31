@@ -177,6 +177,44 @@ button:hover { opacity: 0.9; }
   font-size: 0.9rem;
 }
 
+.subsection-title {
+  margin: 20px 0 12px;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.subsection-title:first-of-type { margin-top: 0; }
+
+.btn-small {
+  padding: 5px 10px;
+  font-size: 0.78rem;
+  border-radius: 5px;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+}
+
+.btn-danger {
+  background: transparent;
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
+
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.commission-input {
+  width: 72px;
+  padding: 5px 8px;
+}
+
 @media (max-width: 760px) {
   .layout { grid-template-columns: 1fr; }
   .grid-2 { grid-template-columns: 1fr; }

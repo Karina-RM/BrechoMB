@@ -77,6 +77,29 @@
             <p id="sale-message" class="form-message"></p>
           </form>
         </section>
+
+        <section class="panel">
+          <h2>Adicionar fornecedora</h2>
+          <form id="supplier-form" class="item-form">
+            <label>
+              Nome
+              <input type="text" id="supplier-name" required />
+            </label>
+
+            <label>
+              Pertence a
+              <select id="supplier-owner" required></select>
+            </label>
+
+            <label>
+              Comissão padrão (%)
+              <input type="number" id="supplier-commission" step="0.1" min="0" max="100" required />
+            </label>
+
+            <button type="submit">Adicionar fornecedora</button>
+            <p id="supplier-message" class="form-message"></p>
+          </form>
+        </section>
       </div>
 
       <div class="content">
@@ -100,6 +123,7 @@
                 <th>Preço</th>
                 <th>Pertence a</th>
                 <th>Status</th>
+                <th>Ações</th>
               </tr>
             </thead>
             <tbody id="inventory-body"></tbody>
@@ -125,6 +149,58 @@
             <tbody id="sales-body"></tbody>
           </table>
           <p id="sales-empty" class="empty-state" hidden>Nenhuma venda registrada ainda.</p>
+        </section>
+
+        <section class="panel panel-wide">
+          <div class="panel-header">
+            <h2>Fornecedoras</h2>
+          </div>
+          <table class="inventory-table">
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>Pertence a</th>
+                <th>Comissão (%)</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="suppliers-body"></tbody>
+          </table>
+          <p id="suppliers-empty" class="empty-state" hidden>Nenhuma fornecedora cadastrada ainda.</p>
+        </section>
+
+        <section class="panel panel-wide" id="supplier-detail" hidden>
+          <div class="panel-header">
+            <h2 id="supplier-detail-title">Detalhes da fornecedora</h2>
+            <span id="supplier-detail-owed" class="status-pill"></span>
+          </div>
+
+          <h3 class="subsection-title">Peças fornecidas</h3>
+          <table class="inventory-table">
+            <thead>
+              <tr>
+                <th>SKU</th>
+                <th>Categoria</th>
+                <th>Preço</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="supplier-items-body"></tbody>
+          </table>
+
+          <h3 class="subsection-title">Histórico de retiradas</h3>
+          <table class="inventory-table">
+            <thead>
+              <tr>
+                <th>SKU</th>
+                <th>Entrada</th>
+                <th>Retirada</th>
+                <th>Dias em estoque</th>
+              </tr>
+            </thead>
+            <tbody id="supplier-withdrawals-body"></tbody>
+          </table>
+          <p id="supplier-withdrawals-empty" class="empty-state" hidden>Nenhuma retirada registrada para esta fornecedora.</p>
         </section>
       </div>
     </main>

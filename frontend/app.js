@@ -10,6 +10,8 @@ let assignmentLookup = {};
 let saleItemsById = {};
 let ownerAName = "Dona A";
 let ownerBName = "Dona B";
+let ownerById = {};
+let currentSupplierDetailId = null;
 
 function formatDate(sqliteTimestamp) {
   const date = new Date(sqliteTimestamp.replace(" ", "T") + "Z");
@@ -33,7 +35,7 @@ async function loadAssignments() {
     fetch("/api/suppliers").then((r) => r.json()),
   ]);
 
-  const ownerById = Object.fromEntries(owners.map((o) => [o.id, o]));
+  ownerById = Object.fromEntries(owners.map((o) => [o.id, o]));
   const select = document.getElementById("assignment");
   select.innerHTML = "";
   assignmentLookup = {};
@@ -55,6 +57,15 @@ async function loadAssignments() {
     assignmentLookup[`supplier:${supplier.id}`] = supplier.name;
   }
 
+  const supplierOwnerSelect = document.getElementById("supplier-owner");
+  supplierOwnerSelect.innerHTML = "";
+  for (const owner of owners) {
+    const opt = document.createElement("option");
+    opt.value = owner.id;
+    opt.textContent = owner.name;
+    supplierOwnerSelect.appendChild(opt);
+  }
+
   const ownerA = owners.find((o) => o.is_cut_owner);
   const ownerB = owners.find((o) => !o.is_cut_owner);
   if (ownerA) {
@@ -65,6 +76,8 @@ async function loadAssignments() {
     ownerBName = ownerB.name;
     document.getElementById("owner-b-header").textContent = ownerB.name;
   }
+
+  return loadSuppliers();
 }
 
 function describeItem(item) {
@@ -90,6 +103,7 @@ async function loadInventory() {
     for (const item of items) {
       const tr = document.createElement("tr");
       if (item.status === "withdrawn") tr.classList.add("withdrawn");
+      const canWithdraw = item.status === "in_stock" && item.supplier_id != null;
       tr.innerHTML = `
         <td>${item.sku}</td>
         <td>${item.category ?? "—"}</td>
@@ -98,6 +112,7 @@ async function loadInventory() {
         <td>${currency.format(item.price)}</td>
         <td>${describeItem(item)}</td>
         <td><span class="status-badge ${item.status}">${STATUS_LABELS[item.status] || item.status}</span></td>
+        <td>${canWithdraw ? `<button type="button" class="btn-small btn-danger" onclick="handleWithdraw(${item.id})">Retirar</button>` : "—"}</td>
       `;
       body.appendChild(tr);
     }
@@ -165,6 +180,123 @@ async function loadSales() {
       <td>${currency.format(sale.split.supplier)}</td>
     `;
     body.appendChild(tr);
+  }
+}
+
+async function loadSuppliers() {
+  const suppliers = await fetch("/api/suppliers").then((r) => r.json());
+
+  const body = document.getElementById("suppliers-body");
+  const empty = document.getElementById("suppliers-empty");
+  body.innerHTML = "";
+
+  if (suppliers.length === 0) {
+    empty.hidden = false;
+  } else {
+    empty.hidden = true;
+    for (const supplier of suppliers) {
+      const owner = ownerById[supplier.owner_id];
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${supplier.name}</td>
+        <td>${owner ? owner.name : "—"}</td>
+        <td>
+          <div class="row-actions">
+            <input type="number" class="commission-input" id="commission-input-${supplier.id}"
+                   value="${supplier.commission_pct}" step="0.1" min="0" max="100" />
+            <button type="button" class="btn-small" onclick="handleCommissionSave(${supplier.id})">Salvar</button>
+          </div>
+        </td>
+        <td><button type="button" class="btn-small btn-secondary" onclick="showSupplierDetail(${supplier.id})">Detalhes</button></td>
+      `;
+      body.appendChild(tr);
+    }
+  }
+
+  if (currentSupplierDetailId) {
+    await showSupplierDetail(currentSupplierDetailId);
+  }
+}
+
+async function handleCommissionSave(supplierId) {
+  const input = document.getElementById(`commission-input-${supplierId}`);
+  const commission_pct = Number(input.value);
+  try {
+    const res = await fetch(`/api/suppliers/${supplierId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ commission_pct }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || "não foi possível salvar a comissão");
+    }
+    loadSuppliers();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function showSupplierDetail(supplierId) {
+  currentSupplierDetailId = supplierId;
+  const supplier = await fetch(`/api/suppliers/${supplierId}`).then((r) => r.json());
+
+  const panel = document.getElementById("supplier-detail");
+  panel.hidden = false;
+  document.getElementById("supplier-detail-title").textContent = `Detalhes — ${supplier.name}`;
+  document.getElementById("supplier-detail-owed").textContent =
+    `total a repassar: ${currency.format(supplier.total_owed)}`;
+
+  const itemsBody = document.getElementById("supplier-items-body");
+  itemsBody.innerHTML = supplier.items.length
+    ? supplier.items
+        .map(
+          (item) => `
+        <tr>
+          <td>${item.sku}</td>
+          <td>${item.category ?? "—"}</td>
+          <td>${currency.format(item.price)}</td>
+          <td><span class="status-badge ${item.status}">${STATUS_LABELS[item.status] || item.status}</span></td>
+        </tr>
+      `
+        )
+        .join("")
+    : `<tr><td colspan="4" class="empty-state">Nenhuma peça fornecida ainda.</td></tr>`;
+
+  const withdrawalsBody = document.getElementById("supplier-withdrawals-body");
+  const withdrawalsEmpty = document.getElementById("supplier-withdrawals-empty");
+  withdrawalsBody.innerHTML = "";
+  if (supplier.withdrawals.length === 0) {
+    withdrawalsEmpty.hidden = false;
+  } else {
+    withdrawalsEmpty.hidden = true;
+    withdrawalsBody.innerHTML = supplier.withdrawals
+      .map(
+        (w) => `
+      <tr>
+        <td>${w.sku}</td>
+        <td>${formatDate(w.intake_date)}</td>
+        <td>${formatDate(w.withdrawn_date)}</td>
+        <td>${w.days_in_store}</td>
+      </tr>
+    `
+      )
+      .join("");
+  }
+}
+
+async function handleWithdraw(itemId) {
+  if (!confirm("Confirmar retirada desta peça pela fornecedora?")) return;
+  try {
+    const res = await fetch(`/api/items/${itemId}/withdraw`, { method: "POST" });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || "não foi possível registrar a retirada");
+    }
+    await loadInventory();
+    if (currentSupplierDetailId) await showSupplierDetail(currentSupplierDetailId);
+  } catch (err) {
+    alert(err.message);
   }
 }
 
@@ -248,10 +380,37 @@ async function handleSaleSubmit(event) {
   }
 }
 
+async function handleSupplierSubmit(event) {
+  event.preventDefault();
+  const name = document.getElementById("supplier-name").value;
+  const owner_id = Number(document.getElementById("supplier-owner").value);
+  const commission_pct = Number(document.getElementById("supplier-commission").value);
+
+  setFormMessage("supplier-message", "Salvando…", "");
+  try {
+    const res = await fetch("/api/suppliers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, owner_id, commission_pct }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || "não foi possível salvar a fornecedora");
+    }
+    const supplier = await res.json();
+    setFormMessage("supplier-message", `Fornecedora ${supplier.name} adicionada`, "success");
+    event.target.reset();
+    await loadAssignments();
+  } catch (err) {
+    setFormMessage("supplier-message", err.message, "error");
+  }
+}
+
 document.getElementById("item-form").addEventListener("submit", handleSubmit);
 document.getElementById("status-filter").addEventListener("change", loadInventory);
 document.getElementById("sale-form").addEventListener("submit", handleSaleSubmit);
 document.getElementById("sale-item").addEventListener("change", updateSalePricePlaceholder);
+document.getElementById("supplier-form").addEventListener("submit", handleSupplierSubmit);
 
 loadHealth();
 loadAssignments().then(loadInventory);

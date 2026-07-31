@@ -127,3 +127,25 @@ def update_item(item_id: int, payload: ItemUpdate):
         return _row_to_item(row)
     finally:
         conn.close()
+
+
+@router.post("/{item_id}/withdraw", response_model=ItemOut)
+def withdraw_item(item_id: int):
+    conn = get_connection()
+    try:
+        row = conn.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
+        if row is None:
+            raise HTTPException(404, "peça não encontrada")
+        if row["supplier_id"] is None:
+            raise HTTPException(400, "apenas peças de fornecedoras podem ser retiradas")
+        if row["status"] != "in_stock":
+            raise HTTPException(400, "esta peça não está disponível para retirada")
+
+        conn.execute("UPDATE items SET status = 'withdrawn' WHERE id = ?", (item_id,))
+        conn.execute("INSERT INTO withdrawals (item_id) VALUES (?)", (item_id,))
+        conn.commit()
+
+        row = conn.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
+        return _row_to_item(row)
+    finally:
+        conn.close()

@@ -21,6 +21,52 @@ class SupplierOut(BaseModel):
     commission_pct: float
 
 
+class SupplierCreate(BaseModel):
+    name: str
+    owner_id: int
+    commission_pct: float
+
+
+class SupplierUpdate(BaseModel):
+    # owner_id deliberately excluded — supplier-owner affiliation is immutable (roadmap.md §1)
+    name: Optional[str] = None
+    commission_pct: Optional[float] = None
+
+
+class SupplierItemOut(BaseModel):
+    id: int
+    sku: str
+    category: Optional[str]
+    price: float
+    status: str
+    intake_date: str
+
+
+class SupplierPayoutSaleOut(BaseModel):
+    sku: str
+    sale_date: str
+    sale_price: float
+    supplier_amount: float
+
+
+class SupplierWithdrawalOut(BaseModel):
+    sku: str
+    intake_date: str
+    withdrawn_date: str
+    days_in_store: int
+
+
+class SupplierDetailOut(BaseModel):
+    id: int
+    name: str
+    owner_id: int
+    commission_pct: float
+    items: List[SupplierItemOut]
+    total_owed: float
+    payout_sales: List[SupplierPayoutSaleOut]
+    withdrawals: List[SupplierWithdrawalOut]
+
+
 class ItemOut(BaseModel):
     id: int
     sku: str
