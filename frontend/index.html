@@ -89,6 +89,12 @@
                   <path d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" fill-rule="evenodd" />
                 </svg>
               </div>
+              <button type="button" id="columns-toggle" class="inline-flex items-center gap-1.5 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-xs inset-ring inset-ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-white dark:shadow-none dark:inset-ring-white/5 dark:hover:bg-white/20">
+                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-4 shrink-0">
+                  <path d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" fill-rule="evenodd" />
+                </svg>
+                <span id="columns-toggle-label">Mostrar mais colunas</span>
+              </button>
               <button type="button" command="show-modal" commandfor="item-drawer" class="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-xs hover:bg-indigo-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 dark:bg-indigo-500 dark:hover:bg-indigo-400">+ Adicionar peça</button>
             </div>
           </div>
@@ -98,18 +104,18 @@
           <div class="mt-6 flow-root">
             <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
               <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
-                <table class="min-w-full divide-y divide-gray-300 dark:divide-white/15">
+                <table id="inventory-table" class="min-w-full divide-y divide-gray-300 dark:divide-white/15 cols-collapsed">
                   <thead>
                     <tr>
                       <th scope="col" class="py-3 pr-3 pl-4 text-left text-xs font-medium tracking-wide text-gray-500 uppercase sm:pl-0 dark:text-gray-400">SKU</th>
-                      <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Departamento</th>
+                      <th scope="col" class="extra-col px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Departamento</th>
                       <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Categoria</th>
-                      <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Marca</th>
+                      <th scope="col" class="extra-col px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Marca</th>
                       <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Tamanho</th>
-                      <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Condição</th>
-                      <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Cor / Estampa</th>
-                      <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Material</th>
-                      <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Observações</th>
+                      <th scope="col" class="extra-col px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Condição</th>
+                      <th scope="col" class="extra-col px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Cor / Estampa</th>
+                      <th scope="col" class="extra-col px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Material</th>
+                      <th scope="col" class="extra-col px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Observações</th>
                       <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Preço</th>
                       <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Pertence a</th>
                       <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Status</th>
@@ -407,55 +413,12 @@
                       <select id="assignment" required class="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-indigo-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-gray-800"></select>
                     </div>
                   </div>
-                  <details class="group rounded-lg border border-gray-200 dark:border-white/10">
-                    <summary class="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm/6 font-medium text-gray-900 select-none dark:text-gray-100">
-                      Mais detalhes (opcional)
-                      <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-5 shrink-0 text-gray-400 transition-transform group-open:rotate-180 dark:text-gray-500">
-                        <path d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" fill-rule="evenodd" />
-                      </svg>
-                    </summary>
-                    <div class="space-y-6 border-t border-gray-200 px-4 pt-4 pb-4 dark:border-white/10">
-                      <div>
-                        <label for="department" class="block text-sm/6 font-medium text-gray-900 dark:text-gray-100">Departamento</label>
-                        <div class="mt-2 grid grid-cols-1">
-                          <select id="department" class="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-indigo-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-gray-800"></select>
-                        </div>
-                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Escolha aqui para liberar a Categoria abaixo.</p>
-                      </div>
-                      <div>
-                        <label for="condition" class="block text-sm/6 font-medium text-gray-900 dark:text-gray-100">Condição</label>
-                        <div class="mt-2 grid grid-cols-1">
-                          <select id="condition" class="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-indigo-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-gray-800"></select>
-                        </div>
-                      </div>
-                      <div>
-                        <label for="brand" class="block text-sm/6 font-medium text-gray-900 dark:text-gray-100">Marca</label>
-                        <div class="mt-2">
-                          <input type="text" id="brand" placeholder="ex: Zara — deixe em branco se não estiver visível" class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-indigo-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:placeholder:text-gray-500" />
-                        </div>
-                      </div>
-                      <div class="grid grid-cols-2 gap-4">
-                        <div>
-                          <label for="color" class="block text-sm/6 font-medium text-gray-900 dark:text-gray-100">Cor / Estampa</label>
-                          <div class="mt-2">
-                            <input type="text" id="color" placeholder="ex: floral, camuflado, vermelho" class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-indigo-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:placeholder:text-gray-500" />
-                          </div>
-                        </div>
-                        <div>
-                          <label for="material" class="block text-sm/6 font-medium text-gray-900 dark:text-gray-100">Material</label>
-                          <div class="mt-2">
-                            <input type="text" id="material" placeholder="ex: seda, couro" class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-indigo-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:placeholder:text-gray-500" />
-                          </div>
-                        </div>
-                      </div>
-                      <div>
-                        <label for="observations" class="block text-sm/6 font-medium text-gray-900 dark:text-gray-100">Observações</label>
-                        <div class="mt-2">
-                          <textarea id="observations" rows="3" placeholder="ex: mancha pequena na manga, falta um botão" class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-indigo-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:placeholder:text-gray-500"></textarea>
-                        </div>
-                      </div>
+                  <div>
+                    <label for="department" class="block text-sm/6 font-medium text-gray-900 dark:text-gray-100">Departamento</label>
+                    <div class="mt-2 grid grid-cols-1">
+                      <select id="department" class="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-indigo-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-gray-800"></select>
                     </div>
-                  </details>
+                  </div>
                   <div class="grid grid-cols-2 gap-4">
                     <div>
                       <label for="category" class="block text-sm/6 font-medium text-gray-900 dark:text-gray-100">Categoria</label>
@@ -470,16 +433,50 @@
                       </div>
                     </div>
                   </div>
+                  <div class="grid grid-cols-2 gap-4">
+                    <div>
+                      <label for="condition" class="block text-sm/6 font-medium text-gray-900 dark:text-gray-100">Condição</label>
+                      <div class="mt-2 grid grid-cols-1">
+                        <select id="condition" class="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-indigo-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-gray-800"></select>
+                      </div>
+                    </div>
+                    <div>
+                      <label for="price" class="block text-sm/6 font-medium text-gray-900 dark:text-gray-100">Preço (R$) <span class="text-red-600 dark:text-red-400">*</span></label>
+                      <div class="mt-2">
+                        <input type="text" inputmode="decimal" id="price" placeholder="ex: 100,00" required class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-indigo-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:placeholder:text-gray-500" />
+                      </div>
+                    </div>
+                  </div>
                   <div>
-                    <label for="price" class="block text-sm/6 font-medium text-gray-900 dark:text-gray-100">Preço (R$) <span class="text-red-600 dark:text-red-400">*</span></label>
+                    <label for="brand" class="block text-sm/6 font-medium text-gray-900 dark:text-gray-100">Marca</label>
                     <div class="mt-2">
-                      <input type="number" id="price" step="0.01" min="0.01" required class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-indigo-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:placeholder:text-gray-500" />
+                      <input type="text" id="brand" placeholder="ex: Zara — deixe em branco se não estiver visível" class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-indigo-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:placeholder:text-gray-500" />
+                    </div>
+                  </div>
+                  <div class="grid grid-cols-2 gap-4">
+                    <div>
+                      <label for="color" class="block text-sm/6 font-medium text-gray-900 dark:text-gray-100">Cor / Estampa</label>
+                      <div class="mt-2">
+                        <input type="text" id="color" placeholder="ex: floral, camuflado, vermelho" class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-indigo-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:placeholder:text-gray-500" />
+                      </div>
+                    </div>
+                    <div>
+                      <label for="material" class="block text-sm/6 font-medium text-gray-900 dark:text-gray-100">Material</label>
+                      <div class="mt-2">
+                        <input type="text" id="material" placeholder="ex: seda, couro" class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-indigo-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:placeholder:text-gray-500" />
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <label for="observations" class="block text-sm/6 font-medium text-gray-900 dark:text-gray-100">Observações</label>
+                    <div class="mt-2">
+                      <textarea id="observations" rows="3" placeholder="ex: mancha pequena na manga, falta um botão" class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-indigo-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:placeholder:text-gray-500"></textarea>
                     </div>
                   </div>
                   <div>
                     <label for="commission_override" class="block text-sm/6 font-medium text-gray-900 dark:text-gray-100">Comissão específica (%)</label>
                     <div class="mt-2">
-                      <input type="number" id="commission_override" step="0.1" min="0" placeholder="usa o padrão da fornecedora" class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-indigo-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:placeholder:text-gray-500" />
+                      <input type="text" inputmode="decimal" id="commission_override" placeholder="usa o padrão da fornecedora" class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-indigo-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:placeholder:text-gray-500" />
                     </div>
                   </div>
                   <div>
@@ -533,7 +530,7 @@
                   <div>
                     <label for="sale-price" class="block text-sm/6 font-medium text-gray-900 dark:text-gray-100">Preço de venda (R$)</label>
                     <div class="mt-2">
-                      <input type="number" id="sale-price" step="0.01" min="0.01" required class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-indigo-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10" />
+                      <input type="text" inputmode="decimal" id="sale-price" placeholder="ex: 100,00" required class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-indigo-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10" />
                     </div>
                   </div>
                   <p id="sale-message" class="text-sm"></p>
@@ -587,7 +584,7 @@
                   <div>
                     <label for="supplier-commission" class="block text-sm/6 font-medium text-gray-900 dark:text-gray-100">Comissão padrão (%)</label>
                     <div class="mt-2">
-                      <input type="number" id="supplier-commission" step="0.1" min="0" max="100" required class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-indigo-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10" />
+                      <input type="text" inputmode="decimal" id="supplier-commission" placeholder="ex: 30" required class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-indigo-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10" />
                     </div>
                   </div>
                   <p id="supplier-message" class="text-sm"></p>

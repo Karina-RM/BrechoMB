@@ -1,1 +1,7 @@
 @import "tailwindcss";
+
+/* Estoque table: secondary columns start hidden so the table fits lower-res
+   desktop screens without horizontal scroll; toggled via #columns-toggle. */
+#inventory-table.cols-collapsed .extra-col {
+  display: none;
+}

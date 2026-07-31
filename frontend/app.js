@@ -50,6 +50,9 @@ function updateSizeField(department, category) {
   const sizeField = document.getElementById("size-field");
   if (department !== SIZE_APPLICABLE_DEPARTMENT || SIZELESS_CATEGORIES.has(category)) {
     sizeField.hidden = true;
+    // Clear any size picked before switching away, so a stale value (e.g. a shoe
+    // number left over from Calçado) never gets submitted for an unrelated category.
+    document.getElementById("size").value = "";
     return;
   }
   sizeField.hidden = false;
@@ -115,6 +118,34 @@ let currentSupplierDetailId = null;
 function formatDate(sqliteTimestamp) {
   const date = new Date(sqliteTimestamp.replace(" ", "T") + "Z");
   return date.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+}
+
+// Brazilian number notation uses "," as the decimal separator (e.g. "100,00"), which
+// native <input type="number"> silently rejects — the browser sanitizes the value to ""
+// without any visible error, so a field that looks filled submits as empty. These
+// currency/percentage fields are plain text inputs instead; this normalizes either
+// notation to a value Number()/parseFloat() can read. Returns "" if nothing usable.
+function parseDecimal(value) {
+  const normalized = String(value ?? "").trim().replace(",", ".");
+  return normalized === "" || Number.isNaN(Number(normalized)) ? "" : normalized;
+}
+
+// FastAPI's own validation errors (missing/invalid Form fields) return `detail` as a
+// list of {loc, msg} objects rather than a string — our own HTTPException calls always
+// use a plain string. Handle both so a validation failure never renders as "[object
+// Object]" in the UI.
+function describeApiError(err, fallback) {
+  const detail = err && err.detail;
+  if (typeof detail === "string" && detail) return detail;
+  if (Array.isArray(detail) && detail.length) {
+    return detail
+      .map((e) => {
+        const field = Array.isArray(e?.loc) ? e.loc[e.loc.length - 1] : null;
+        return field ? `${field}: ${e.msg}` : e?.msg || fallback;
+      })
+      .join("; ");
+  }
+  return fallback;
 }
 
 function statusBadge(status) {
@@ -338,14 +369,14 @@ async function loadInventory() {
       const canWithdraw = item.status === "in_stock" && item.supplier_id != null;
       tr.innerHTML = `
         <td class="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-gray-900 sm:pl-0 dark:text-white">${item.sku}</td>
-        <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${item.department ?? "—"}</td>
+        <td class="extra-col px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${item.department ?? "—"}</td>
         <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${item.category ?? "—"}</td>
-        <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${item.brand ?? "—"}</td>
+        <td class="extra-col px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${item.brand ?? "—"}</td>
         <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${item.size ?? "—"}</td>
-        <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${item.condition ?? "—"}</td>
-        <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${item.color ?? "—"}</td>
-        <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${item.material ?? "—"}</td>
-        <td class="max-w-40 truncate px-3 py-4 text-sm text-gray-500 dark:text-gray-400" title="${item.observations ?? ""}">${item.observations ?? "—"}</td>
+        <td class="extra-col px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${item.condition ?? "—"}</td>
+        <td class="extra-col px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${item.color ?? "—"}</td>
+        <td class="extra-col px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${item.material ?? "—"}</td>
+        <td class="extra-col max-w-40 truncate px-3 py-4 text-sm text-gray-500 dark:text-gray-400" title="${item.observations ?? ""}">${item.observations ?? "—"}</td>
         <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${currency.format(item.price)}</td>
         <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${describeItem(item)}</td>
         <td class="px-3 py-4 text-sm whitespace-nowrap">${statusBadge(item.status)}</td>
@@ -398,7 +429,7 @@ async function loadSaleItems() {
 function updateSalePricePlaceholder() {
   const selected = saleItemsById[document.getElementById("sale-item").value];
   if (selected) {
-    document.getElementById("sale-price").value = selected.price;
+    document.getElementById("sale-price").value = String(selected.price).replace(".", ",");
   }
 }
 
@@ -448,7 +479,7 @@ async function loadSuppliers() {
         <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${owner ? owner.name : "—"}</td>
         <td class="px-3 py-4 text-sm whitespace-nowrap">
           <div class="flex items-center gap-2">
-            <input type="number" id="commission-input-${supplier.id}" value="${supplier.commission_pct}" step="0.1" min="0" max="100"
+            <input type="text" inputmode="decimal" id="commission-input-${supplier.id}" value="${String(supplier.commission_pct).replace(".", ",")}"
               class="w-20 rounded-md bg-white px-2 py-1 text-sm text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10" />
             <button type="button" onclick="handleCommissionSave(${supplier.id})" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300">Salvar</button>
           </div>
@@ -464,7 +495,7 @@ async function loadSuppliers() {
 
 async function handleCommissionSave(supplierId) {
   const input = document.getElementById(`commission-input-${supplierId}`);
-  const commission_pct = Number(input.value);
+  const commission_pct = Number(parseDecimal(input.value));
   try {
     const res = await fetch(`/api/suppliers/${supplierId}`, {
       method: "PATCH",
@@ -473,7 +504,7 @@ async function handleCommissionSave(supplierId) {
     });
     if (!res.ok) {
       const err = await res.json();
-      throw new Error(err.detail || "não foi possível salvar a comissão");
+      throw new Error(describeApiError(err, "não foi possível salvar a comissão"));
     }
     await loadSuppliers();
     showAlert("suppliers-alert-slot", "Comissão atualizada.", "success");
@@ -597,7 +628,7 @@ async function handleWithdraw(itemId) {
     const res = await fetch(`/api/items/${itemId}/withdraw`, { method: "POST" });
     if (!res.ok) {
       const err = await res.json();
-      throw new Error(err.detail || "não foi possível registrar a retirada");
+      throw new Error(describeApiError(err, "não foi possível registrar a retirada"));
     }
     await loadInventory();
     if (currentSupplierDetailId) await showSupplierDetail(currentSupplierDetailId);
@@ -716,7 +747,7 @@ async function handleSubmit(event) {
 
   const formData = new FormData();
   formData.append(kind === "owner" ? "owner_id" : "supplier_id", id);
-  formData.append("price", document.getElementById("price").value);
+  formData.append("price", parseDecimal(document.getElementById("price").value));
 
   const department = document.getElementById("department").value;
   const category = document.getElementById("category").value;
@@ -726,7 +757,7 @@ async function handleSubmit(event) {
   const color = document.getElementById("color").value;
   const material = document.getElementById("material").value;
   const observations = document.getElementById("observations").value;
-  const override = document.getElementById("commission_override").value;
+  const override = parseDecimal(document.getElementById("commission_override").value);
   if (department) formData.append("department", department);
   if (category) formData.append("category", category);
   if (brand) formData.append("brand", brand);
@@ -746,7 +777,7 @@ async function handleSubmit(event) {
     const res = await fetch("/api/items", { method: "POST", body: formData });
     if (!res.ok) {
       const err = await res.json();
-      throw new Error(err.detail || "não foi possível salvar a peça");
+      throw new Error(describeApiError(err, "não foi possível salvar a peça"));
     }
     const item = await res.json();
     setFormMessage("form-message", `Peça ${item.sku} adicionada`, "success");
@@ -763,7 +794,7 @@ async function handleSubmit(event) {
 async function handleSaleSubmit(event) {
   event.preventDefault();
   const itemId = Number(document.getElementById("sale-item").value);
-  const salePrice = Number(document.getElementById("sale-price").value);
+  const salePrice = Number(parseDecimal(document.getElementById("sale-price").value));
   if (!itemId) {
     setFormMessage("sale-message", "não há peça em estoque para vender", "error");
     return;
@@ -778,7 +809,7 @@ async function handleSaleSubmit(event) {
     });
     if (!res.ok) {
       const err = await res.json();
-      throw new Error(err.detail || "não foi possível registrar a venda");
+      throw new Error(describeApiError(err, "não foi possível registrar a venda"));
     }
     const sale = await res.json();
     await loadInventory();
@@ -801,7 +832,7 @@ async function handleSupplierSubmit(event) {
   event.preventDefault();
   const name = document.getElementById("supplier-name").value;
   const owner_id = Number(document.getElementById("supplier-owner").value);
-  const commission_pct = Number(document.getElementById("supplier-commission").value);
+  const commission_pct = Number(parseDecimal(document.getElementById("supplier-commission").value));
 
   setFormMessage("supplier-message", "Salvando…", "");
   try {
@@ -812,7 +843,7 @@ async function handleSupplierSubmit(event) {
     });
     if (!res.ok) {
       const err = await res.json();
-      throw new Error(err.detail || "não foi possível salvar a fornecedora");
+      throw new Error(describeApiError(err, "não foi possível salvar a fornecedora"));
     }
     const supplier = await res.json();
     event.target.reset();
@@ -829,6 +860,11 @@ async function handleSupplierSubmit(event) {
 document.getElementById("item-form").addEventListener("submit", handleSubmit);
 document.getElementById("status-filter").addEventListener("change", loadInventory);
 document.getElementById("department-filter").addEventListener("change", loadInventory);
+document.getElementById("columns-toggle").addEventListener("click", () => {
+  const table = document.getElementById("inventory-table");
+  const collapsed = table.classList.toggle("cols-collapsed");
+  document.getElementById("columns-toggle-label").textContent = collapsed ? "Mostrar mais colunas" : "Mostrar menos colunas";
+});
 document.getElementById("department").addEventListener("change", (e) => updateCategoryOptions(e.target.value));
 document.getElementById("category").addEventListener("change", (e) => updateSizeField(document.getElementById("department").value, e.target.value));
 document.getElementById("sale-form").addEventListener("submit", handleSaleSubmit);

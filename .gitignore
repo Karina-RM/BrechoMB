@@ -2,6 +2,7 @@
 __pycache__/
 *.pyc
 data/*.db
+data/photos/
 .DS_Store
 node_modules/
 tailwind_plus_ui_blocks/
