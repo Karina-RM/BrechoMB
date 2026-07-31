@@ -1,0 +1,16 @@
+{
+  "name": "brecho-frontend-build",
+  "private": true,
+  "description": "Dev-only build tooling for frontend/. Not needed to run the app (python app.py) — only to regenerate frontend/styles.css and frontend/vendor/elements.js after editing frontend/src/input.css or upgrading dependencies.",
+  "scripts": {
+    "build:css": "tailwindcss -i frontend/src/input.css -o frontend/styles.css --minify",
+    "build:js": "node build-vendor-elements.js",
+    "build": "npm run build:css && npm run build:js"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4",
+    "tailwindcss": "^4",
+    "@tailwindplus/elements": "^1",
+    "esbuild": "^0.24.0"
+  }
+}

@@ -2,6 +2,8 @@ from typing import List, Optional
 
 from pydantic import BaseModel
 
+from backend.enums import ItemCategory, ItemCondition, ItemDepartment
+
 
 class OwnerOut(BaseModel):
     id: int
@@ -76,7 +78,12 @@ class ItemOut(BaseModel):
     photo_paths: List[str]
     size: Optional[str]
     condition: Optional[str]
+    department: Optional[str]
     category: Optional[str]
+    brand: Optional[str]
+    color: Optional[str]
+    material: Optional[str]
+    observations: Optional[str]
     price: float
     status: str
     intake_date: str
@@ -84,8 +91,13 @@ class ItemOut(BaseModel):
 
 class ItemUpdate(BaseModel):
     size: Optional[str] = None
-    condition: Optional[str] = None
-    category: Optional[str] = None
+    condition: Optional[ItemCondition] = None
+    department: Optional[ItemDepartment] = None
+    category: Optional[ItemCategory] = None
+    brand: Optional[str] = None
+    color: Optional[str] = None
+    material: Optional[str] = None
+    observations: Optional[str] = None
     price: Optional[float] = None
     commission_pct_override: Optional[float] = None
 
@@ -108,6 +120,13 @@ class SaleOut(BaseModel):
     sale_price: float
     sale_date: str
     split: SplitOut
+
+
+class ItemDetailOut(ItemOut):
+    # Populated only when the item has actually sold or been withdrawn — the drill-in
+    # view for a plain in-stock item just omits these.
+    sale: Optional[SaleOut] = None
+    withdrawn_date: Optional[str] = None
 
 
 class ReportSummaryOut(BaseModel):

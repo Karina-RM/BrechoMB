@@ -25,7 +25,12 @@ CREATE TABLE IF NOT EXISTS items (
     photo_paths TEXT NOT NULL DEFAULT '[]',
     size TEXT,
     condition TEXT,
+    department TEXT,
     category TEXT,
+    brand TEXT,
+    color TEXT,
+    material TEXT,
+    observations TEXT,
     price REAL NOT NULL,
     status TEXT NOT NULL DEFAULT 'in_stock',
     intake_date TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -59,6 +64,24 @@ CREATE TABLE IF NOT EXISTS withdrawals (
 
 def create_schema(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA)
+    conn.commit()
+
+
+def migrate_schema(conn: sqlite3.Connection) -> None:
+    """Add columns introduced after a database's initial creation. CREATE TABLE IF NOT
+    EXISTS above only applies to brand-new databases, so existing ones need explicit,
+    idempotent ALTER TABLE steps here."""
+    existing = {row["name"] for row in conn.execute("PRAGMA table_info(items)")}
+    if "department" not in existing:
+        conn.execute("ALTER TABLE items ADD COLUMN department TEXT")
+    if "brand" not in existing:
+        conn.execute("ALTER TABLE items ADD COLUMN brand TEXT")
+    if "color" not in existing:
+        conn.execute("ALTER TABLE items ADD COLUMN color TEXT")
+    if "material" not in existing:
+        conn.execute("ALTER TABLE items ADD COLUMN material TEXT")
+    if "observations" not in existing:
+        conn.execute("ALTER TABLE items ADD COLUMN observations TEXT")
     conn.commit()
 
 

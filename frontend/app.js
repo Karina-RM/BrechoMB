@@ -6,6 +6,105 @@ const STATUS_LABELS = {
   withdrawn: "retirado",
 };
 
+const STATUS_DOT_COLOR = {
+  in_stock: "fill-green-500 dark:fill-green-400",
+  sold: "fill-blue-500 dark:fill-blue-400",
+  withdrawn: "fill-red-500 dark:fill-red-400",
+};
+
+// Kept in sync with backend/enums.py — controlled vocabularies so free-text intake
+// doesn't fragment inventory data (e.g. "vestido" vs "Vestido" vs "vestido floral").
+const ITEM_DEPARTMENTS = ["Roupas e Acessórios", "Casa e Decoração", "Eletrônicos e Eletrodomésticos", "Livros e Mídia", "Brinquedos e Jogos", "Outros"];
+
+// Mirrors backend/enums.py DEPARTMENT_CATEGORIES — which categories show up once a
+// department is chosen, so the category dropdown stays short instead of listing
+// every category from every department at once.
+const DEPARTMENT_CATEGORIES = {
+  "Roupas e Acessórios": ["Vestido", "Blusa", "Camisa", "Saia", "Calça", "Short", "Casaco", "Jaqueta", "Moletom", "Macacão", "Conjunto", "Acessório", "Calçado", "Bolsa", "Outro"],
+  "Casa e Decoração": ["Móveis", "Decoração", "Iluminação", "Cama, mesa e banho", "Cortinas e tapetes", "Utensílios de cozinha", "Louças e vidros", "Outro"],
+  "Eletrônicos e Eletrodomésticos": ["Eletrodoméstico", "Eletrônico", "Informática", "Outro"],
+  "Livros e Mídia": ["Livro", "Mídia (CD/DVD/vinil)", "Revista", "Outro"],
+  "Brinquedos e Jogos": ["Brinquedo", "Jogo", "Outro"],
+  Outros: ["Outro"],
+};
+
+// Tamanho only makes sense inside Roupas e Acessórios — hidden for every other department.
+const SIZE_APPLICABLE_DEPARTMENT = "Roupas e Acessórios";
+
+// Within that department, which size vocabulary applies per category. Categories not
+// listed here (Vestido, Blusa, Calça, ...) default to ordinary clothing sizing.
+// Mirrors backend/enums.py SHOE_SIZE_CATEGORIES / SIZELESS_CATEGORIES.
+const SHOE_SIZE_CATEGORIES = new Set(["Calçado"]);
+const SIZELESS_CATEGORIES = new Set(["Acessório", "Bolsa"]);
+
+const ITEM_SIZES = ["PP", "P", "M", "G", "GG", "XG", "Único"];
+const SHOE_SIZES = ["33", "34", "35", "36", "37", "38", "39", "40", "41", "42", "43", "44", "Único"];
+const ITEM_CONDITIONS = ["Novo com etiqueta", "Novo sem etiqueta", "Seminovo", "Usado"];
+
+function populateSelect(id, options, placeholder) {
+  const select = document.getElementById(id);
+  select.innerHTML = `<option value="">${placeholder}</option>` + options.map((o) => `<option value="${o}">${o}</option>`).join("");
+}
+
+function updateSizeField(department, category) {
+  const sizeField = document.getElementById("size-field");
+  if (department !== SIZE_APPLICABLE_DEPARTMENT || SIZELESS_CATEGORIES.has(category)) {
+    sizeField.hidden = true;
+    return;
+  }
+  sizeField.hidden = false;
+  if (SHOE_SIZE_CATEGORIES.has(category)) {
+    populateSelect("size", SHOE_SIZES, "Selecione o tamanho (numeração BR)");
+  } else {
+    populateSelect("size", ITEM_SIZES, "Selecione o tamanho");
+  }
+}
+
+function updateCategoryOptions(department) {
+  const categorySelect = document.getElementById("category");
+  if (!department) {
+    categorySelect.innerHTML = '<option value="">Selecione o departamento primeiro</option>';
+    categorySelect.disabled = true;
+    updateSizeField(department, "");
+    return;
+  }
+  categorySelect.disabled = false;
+  populateSelect("category", DEPARTMENT_CATEGORIES[department] || [], "Selecione a categoria");
+  updateSizeField(department, "");
+}
+
+const NAV_ITEMS = [
+  {
+    view: "inventory",
+    label: "Estoque",
+    path: `<path d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+  {
+    view: "sales",
+    label: "Vendas",
+    path: `<path d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+  {
+    view: "suppliers",
+    label: "Fornecedoras",
+    path: `<path d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+  {
+    view: "reports",
+    label: "Relatórios",
+    path: `<path d="M10.5 6a7.5 7.5 0 1 0 7.5 7.5h-7.5V6Z" stroke-linecap="round" stroke-linejoin="round" /><path d="M13.5 10.5H21A7.5 7.5 0 0 0 13.5 3v7.5Z" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+];
+
+const VIEW_TITLES = {
+  inventory: "Estoque",
+  "item-detail": "Estoque",
+  sales: "Vendas",
+  suppliers: "Fornecedoras",
+  "supplier-detail": "Fornecedoras",
+  reports: "Relatórios",
+};
+
 let assignmentLookup = {};
 let saleItemsById = {};
 let ownerAName = "Dona A";
@@ -18,14 +117,145 @@ function formatDate(sqliteTimestamp) {
   return date.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
 }
 
+function statusBadge(status) {
+  const dot = STATUS_DOT_COLOR[status] || "fill-gray-400";
+  return `
+    <span class="inline-flex items-center gap-x-1.5 rounded-md px-2 py-1 text-xs font-medium text-gray-900 inset-ring inset-ring-gray-200 dark:text-white dark:inset-ring-white/10">
+      <svg viewBox="0 0 6 6" aria-hidden="true" class="size-1.5 ${dot}"><circle r="3" cx="3" cy="3" /></svg>
+      ${STATUS_LABELS[status] || status}
+    </span>
+  `;
+}
+
+function alertBlock(message, kind) {
+  const isError = kind === "error";
+  const bg = isError ? "bg-red-50 dark:bg-red-500/10 dark:outline dark:outline-red-500/20" : "bg-green-50 dark:bg-green-500/10 dark:outline dark:outline-green-500/20";
+  const iconColor = isError ? "text-red-400" : "text-green-400";
+  const textColor = isError ? "text-red-800 dark:text-red-300" : "text-green-800 dark:text-green-300";
+  const btnColor = isError
+    ? "bg-red-50 text-red-500 hover:bg-red-100 dark:bg-transparent dark:text-red-400 dark:hover:bg-red-500/10"
+    : "bg-green-50 text-green-500 hover:bg-green-100 dark:bg-transparent dark:text-green-400 dark:hover:bg-green-500/10";
+  const icon = isError
+    ? `<path d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm-1-5a1 1 0 1 1 2 0 1 1 0 0 1-2 0Zm.25-6.75a.75.75 0 0 1 1.5 0v3.5a.75.75 0 0 1-1.5 0v-3.5Z" clip-rule="evenodd" fill-rule="evenodd" />`
+    : `<path d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z" clip-rule="evenodd" fill-rule="evenodd" />`;
+  return `
+    <div class="rounded-md ${bg} p-4">
+      <div class="flex">
+        <div class="shrink-0">
+          <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-5 ${iconColor}">${icon}</svg>
+        </div>
+        <div class="ml-3">
+          <p class="text-sm font-medium ${textColor}">${message}</p>
+        </div>
+        <div class="ml-auto pl-3">
+          <div class="-mx-1.5 -my-1.5">
+            <button type="button" onclick="this.closest('[data-alert]').remove()" class="inline-flex rounded-md ${btnColor} p-1.5 focus-visible:outline-hidden">
+              <span class="sr-only">Dispensar</span>
+              <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-5">
+                <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function showAlert(slotId, message, kind) {
+  const slot = document.getElementById(slotId);
+  const wrapper = document.createElement("div");
+  wrapper.setAttribute("data-alert", "");
+  wrapper.innerHTML = alertBlock(message, kind);
+  slot.innerHTML = "";
+  slot.appendChild(wrapper);
+}
+
+// --- Navigation / routing -------------------------------------------------
+
+function renderNav() {
+  const html = `
+    <ul role="list" class="flex flex-1 flex-col gap-y-7">
+      <li>
+        <ul role="list" class="-mx-2 space-y-1">
+          ${NAV_ITEMS.map(
+            (item) => `
+            <li>
+              <a href="#${item.view}" data-nav="${item.view}" class="group flex gap-x-3 rounded-md p-2 text-sm/6 font-semibold text-gray-700 hover:bg-gray-50 hover:text-indigo-600 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="size-6 shrink-0 text-gray-400 group-hover:text-indigo-600 dark:group-hover:text-white">
+                  ${item.path}
+                </svg>
+                ${item.label}
+              </a>
+            </li>
+          `
+          ).join("")}
+        </ul>
+      </li>
+    </ul>
+  `;
+  document.getElementById("mobile-nav").innerHTML = html;
+  document.getElementById("desktop-nav").innerHTML = html;
+}
+
+function setActiveNav(view) {
+  const activeClasses = ["bg-gray-50", "dark:bg-white/5", "text-indigo-600", "dark:text-white"];
+  document.querySelectorAll("[data-nav]").forEach((link) => {
+    const icon = link.querySelector("svg");
+    if (link.dataset.nav === view) {
+      link.classList.add(...activeClasses);
+      icon.classList.add("text-indigo-600", "dark:text-white");
+    } else {
+      link.classList.remove(...activeClasses);
+      icon.classList.remove("text-indigo-600", "dark:text-white");
+    }
+  });
+}
+
+function parseHash() {
+  const hash = location.hash.replace(/^#/, "") || "inventory";
+  const [view, id] = hash.split("/");
+  return { view, id };
+}
+
+async function showView() {
+  const { view, id } = parseHash();
+  const knownViews = ["inventory", "sales", "suppliers", "reports"];
+  const resolvedView =
+    view === "suppliers" && id ? "supplier-detail" : view === "items" && id ? "item-detail" : knownViews.includes(view) ? view : "inventory";
+
+  document.querySelectorAll("[data-view]").forEach((section) => {
+    section.hidden = section.dataset.view !== resolvedView;
+  });
+  document.getElementById("page-title").textContent = VIEW_TITLES[resolvedView] || "Brechó";
+  setActiveNav(resolvedView === "supplier-detail" ? "suppliers" : resolvedView === "item-detail" ? "inventory" : resolvedView);
+  document.getElementById("mobile-sidebar").close();
+
+  if (resolvedView === "inventory") await loadInventory();
+  else if (resolvedView === "item-detail") await showItemDetail(Number(id));
+  else if (resolvedView === "sales") await loadSales();
+  else if (resolvedView === "suppliers") await loadSuppliers();
+  else if (resolvedView === "supplier-detail") await showSupplierDetail(Number(id));
+  else if (resolvedView === "reports") await loadReports();
+}
+
+// --- Data loading -----------------------------------------------------------
+
 async function loadHealth() {
+  const pill = document.getElementById("backend-status");
   try {
     const res = await fetch("/api/health");
     const data = await res.json();
-    document.getElementById("backend-status").textContent =
-      data.status === "ok" ? "conectado" : "sistema indisponível";
+    const ok = data.status === "ok";
+    pill.innerHTML = `
+      <svg viewBox="0 0 6 6" aria-hidden="true" class="size-1.5 ${ok ? "fill-green-500 dark:fill-green-400" : "fill-red-500 dark:fill-red-400"}"><circle r="3" cx="3" cy="3" /></svg>
+      ${ok ? "conectado" : "sistema indisponível"}
+    `;
   } catch {
-    document.getElementById("backend-status").textContent = "sistema indisponível";
+    pill.innerHTML = `
+      <svg viewBox="0 0 6 6" aria-hidden="true" class="size-1.5 fill-red-500 dark:fill-red-400"><circle r="3" cx="3" cy="3" /></svg>
+      sistema indisponível
+    `;
   }
 }
 
@@ -76,8 +306,6 @@ async function loadAssignments() {
     ownerBName = ownerB.name;
     document.getElementById("owner-b-header").textContent = ownerB.name;
   }
-
-  return loadSuppliers();
 }
 
 function describeItem(item) {
@@ -89,8 +317,12 @@ function describeItem(item) {
 
 async function loadInventory() {
   const status = document.getElementById("status-filter").value;
-  const url = status ? `/api/items?status=${status}` : "/api/items";
-  const items = await fetch(url).then((r) => r.json());
+  const department = document.getElementById("department-filter").value;
+  const params = new URLSearchParams();
+  if (status) params.set("status", status);
+  if (department) params.set("department", department);
+  const query = params.toString();
+  const items = await fetch(`/api/items${query ? `?${query}` : ""}`).then((r) => r.json());
 
   const body = document.getElementById("inventory-body");
   const empty = document.getElementById("inventory-empty");
@@ -102,23 +334,37 @@ async function loadInventory() {
     empty.hidden = true;
     for (const item of items) {
       const tr = document.createElement("tr");
-      if (item.status === "withdrawn") tr.classList.add("withdrawn");
+      if (item.status === "withdrawn") tr.classList.add("opacity-50");
       const canWithdraw = item.status === "in_stock" && item.supplier_id != null;
       tr.innerHTML = `
-        <td>${item.sku}</td>
-        <td>${item.category ?? "—"}</td>
-        <td>${item.size ?? "—"}</td>
-        <td>${item.condition ?? "—"}</td>
-        <td>${currency.format(item.price)}</td>
-        <td>${describeItem(item)}</td>
-        <td><span class="status-badge ${item.status}">${STATUS_LABELS[item.status] || item.status}</span></td>
-        <td>${canWithdraw ? `<button type="button" class="btn-small btn-danger" onclick="handleWithdraw(${item.id})">Retirar</button>` : "—"}</td>
+        <td class="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-gray-900 sm:pl-0 dark:text-white">${item.sku}</td>
+        <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${item.department ?? "—"}</td>
+        <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${item.category ?? "—"}</td>
+        <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${item.brand ?? "—"}</td>
+        <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${item.size ?? "—"}</td>
+        <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${item.condition ?? "—"}</td>
+        <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${item.color ?? "—"}</td>
+        <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${item.material ?? "—"}</td>
+        <td class="max-w-40 truncate px-3 py-4 text-sm text-gray-500 dark:text-gray-400" title="${item.observations ?? ""}">${item.observations ?? "—"}</td>
+        <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${currency.format(item.price)}</td>
+        <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${describeItem(item)}</td>
+        <td class="px-3 py-4 text-sm whitespace-nowrap">${statusBadge(item.status)}</td>
+        <td class="py-4 pr-4 pl-3 text-right text-sm font-medium whitespace-nowrap sm:pr-0">
+          <div class="flex justify-end gap-4">
+            <a href="#items/${item.id}" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300">Detalhes</a>
+            ${
+              canWithdraw
+                ? `<button type="button" onclick="handleWithdraw(${item.id})" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">Retirar</button>`
+                : ""
+            }
+          </div>
+        </td>
       `;
       body.appendChild(tr);
     }
   }
 
-  return loadSaleItems();
+  await loadSaleItems();
 }
 
 async function loadSaleItems() {
@@ -172,12 +418,12 @@ async function loadSales() {
   for (const sale of sales) {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${sale.sku}</td>
-      <td>${formatDate(sale.sale_date)}</td>
-      <td>${currency.format(sale.sale_price)}</td>
-      <td>${currency.format(sale.split.owner_a)}</td>
-      <td>${currency.format(sale.split.owner_b)}</td>
-      <td>${currency.format(sale.split.supplier)}</td>
+      <td class="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-gray-900 sm:pl-0 dark:text-white">${sale.sku}</td>
+      <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${formatDate(sale.sale_date)}</td>
+      <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${currency.format(sale.sale_price)}</td>
+      <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${currency.format(sale.split.owner_a)}</td>
+      <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${currency.format(sale.split.owner_b)}</td>
+      <td class="py-4 pr-4 pl-3 text-sm whitespace-nowrap text-gray-500 sm:pr-0 dark:text-gray-400">${currency.format(sale.split.supplier)}</td>
     `;
     body.appendChild(tr);
   }
@@ -198,23 +444,21 @@ async function loadSuppliers() {
       const owner = ownerById[supplier.owner_id];
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td>${supplier.name}</td>
-        <td>${owner ? owner.name : "—"}</td>
-        <td>
-          <div class="row-actions">
-            <input type="number" class="commission-input" id="commission-input-${supplier.id}"
-                   value="${supplier.commission_pct}" step="0.1" min="0" max="100" />
-            <button type="button" class="btn-small" onclick="handleCommissionSave(${supplier.id})">Salvar</button>
+        <td class="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-gray-900 sm:pl-0 dark:text-white">${supplier.name}</td>
+        <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${owner ? owner.name : "—"}</td>
+        <td class="px-3 py-4 text-sm whitespace-nowrap">
+          <div class="flex items-center gap-2">
+            <input type="number" id="commission-input-${supplier.id}" value="${supplier.commission_pct}" step="0.1" min="0" max="100"
+              class="w-20 rounded-md bg-white px-2 py-1 text-sm text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10" />
+            <button type="button" onclick="handleCommissionSave(${supplier.id})" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300">Salvar</button>
           </div>
         </td>
-        <td><button type="button" class="btn-small btn-secondary" onclick="showSupplierDetail(${supplier.id})">Detalhes</button></td>
+        <td class="py-4 pr-4 pl-3 text-right text-sm font-medium whitespace-nowrap sm:pr-0">
+          <a href="#suppliers/${supplier.id}" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300">Detalhes</a>
+        </td>
       `;
       body.appendChild(tr);
     }
-  }
-
-  if (currentSupplierDetailId) {
-    await showSupplierDetail(currentSupplierDetailId);
   }
 }
 
@@ -231,9 +475,10 @@ async function handleCommissionSave(supplierId) {
       const err = await res.json();
       throw new Error(err.detail || "não foi possível salvar a comissão");
     }
-    loadSuppliers();
+    await loadSuppliers();
+    showAlert("suppliers-alert-slot", "Comissão atualizada.", "success");
   } catch (err) {
-    alert(err.message);
+    showAlert("suppliers-alert-slot", err.message, "error");
   }
 }
 
@@ -241,11 +486,9 @@ async function showSupplierDetail(supplierId) {
   currentSupplierDetailId = supplierId;
   const supplier = await fetch(`/api/suppliers/${supplierId}`).then((r) => r.json());
 
-  const panel = document.getElementById("supplier-detail");
-  panel.hidden = false;
-  document.getElementById("supplier-detail-title").textContent = `Detalhes — ${supplier.name}`;
-  document.getElementById("supplier-detail-owed").textContent =
-    `total a repassar: ${currency.format(supplier.total_owed)}`;
+  document.getElementById("supplier-detail-title").textContent = supplier.name;
+  document.getElementById("supplier-detail-name").textContent = supplier.name;
+  document.getElementById("supplier-detail-owed").textContent = `total a repassar: ${currency.format(supplier.total_owed)}`;
 
   const itemsBody = document.getElementById("supplier-items-body");
   itemsBody.innerHTML = supplier.items.length
@@ -253,15 +496,15 @@ async function showSupplierDetail(supplierId) {
         .map(
           (item) => `
         <tr>
-          <td>${item.sku}</td>
-          <td>${item.category ?? "—"}</td>
-          <td>${currency.format(item.price)}</td>
-          <td><span class="status-badge ${item.status}">${STATUS_LABELS[item.status] || item.status}</span></td>
+          <td class="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-gray-900 sm:pl-0 dark:text-white">${item.sku}</td>
+          <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${item.category ?? "—"}</td>
+          <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${currency.format(item.price)}</td>
+          <td class="py-4 pr-4 pl-3 text-sm whitespace-nowrap sm:pr-0">${statusBadge(item.status)}</td>
         </tr>
       `
         )
         .join("")
-    : `<tr><td colspan="4" class="empty-state">Nenhuma peça fornecida ainda.</td></tr>`;
+    : `<tr><td colspan="4" class="py-10 text-center text-sm text-gray-500 dark:text-gray-400">Nenhuma peça fornecida ainda.</td></tr>`;
 
   const withdrawalsBody = document.getElementById("supplier-withdrawals-body");
   const withdrawalsEmpty = document.getElementById("supplier-withdrawals-empty");
@@ -274,14 +517,77 @@ async function showSupplierDetail(supplierId) {
       .map(
         (w) => `
       <tr>
-        <td>${w.sku}</td>
-        <td>${formatDate(w.intake_date)}</td>
-        <td>${formatDate(w.withdrawn_date)}</td>
-        <td>${w.days_in_store}</td>
+        <td class="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-gray-900 sm:pl-0 dark:text-white">${w.sku}</td>
+        <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${formatDate(w.intake_date)}</td>
+        <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${formatDate(w.withdrawn_date)}</td>
+        <td class="py-4 pr-4 pl-3 text-sm whitespace-nowrap text-gray-500 sm:pr-0 dark:text-gray-400">${w.days_in_store}</td>
       </tr>
     `
       )
       .join("");
+  }
+}
+
+function detailRow(label, value) {
+  return `
+    <div class="px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+      <dt class="text-sm font-medium text-gray-900 dark:text-gray-100">${label}</dt>
+      <dd class="mt-1 text-sm/6 text-gray-700 sm:col-span-2 sm:mt-0 dark:text-gray-300">${value}</dd>
+    </div>
+  `;
+}
+
+async function showItemDetail(itemId) {
+  const item = await fetch(`/api/items/${itemId}`).then((r) => r.json());
+
+  document.getElementById("item-detail-sku").textContent = item.sku;
+  document.getElementById("item-detail-title").textContent = item.sku;
+  document.getElementById("item-detail-status").innerHTML = statusBadge(item.status);
+
+  const photosEl = document.getElementById("item-detail-photos");
+  photosEl.innerHTML = item.photo_paths
+    .map(
+      (p) =>
+        `<img src="${p}" class="aspect-square w-full rounded-lg bg-gray-100 object-cover outline outline-gray-200 dark:bg-gray-800 dark:outline-white/10" />`
+    )
+    .join("");
+
+  const fields = [
+    ["Pertence a", describeItem(item)],
+    ["Departamento", item.department ?? "—"],
+    ["Categoria", item.category ?? "—"],
+    ["Marca", item.brand ?? "—"],
+    ["Tamanho", item.size ?? "—"],
+    ["Condição", item.condition ?? "—"],
+    ["Cor / Estampa", item.color ?? "—"],
+    ["Material", item.material ?? "—"],
+    ["Observações", item.observations ?? "—"],
+    ["Preço", currency.format(item.price)],
+    ["Data de entrada", formatDate(item.intake_date)],
+  ];
+  document.getElementById("item-detail-fields").innerHTML = fields.map(([l, v]) => detailRow(l, v)).join("");
+
+  const saleSection = document.getElementById("item-detail-sale");
+  saleSection.hidden = !item.sale;
+  if (item.sale) {
+    const saleFields = [
+      ["Data da venda", formatDate(item.sale.sale_date)],
+      ["Preço de venda", currency.format(item.sale.sale_price)],
+      [ownerAName, currency.format(item.sale.split.owner_a)],
+      [ownerBName, currency.format(item.sale.split.owner_b)],
+      ["Fornecedora", currency.format(item.sale.split.supplier)],
+    ];
+    document.getElementById("item-detail-sale-fields").innerHTML = saleFields.map(([l, v]) => detailRow(l, v)).join("");
+  }
+
+  const withdrawalSection = document.getElementById("item-detail-withdrawal");
+  withdrawalSection.hidden = !item.withdrawn_date;
+  if (item.withdrawn_date) {
+    const withdrawalFields = [
+      ["Data de entrada", formatDate(item.intake_date)],
+      ["Data da retirada", formatDate(item.withdrawn_date)],
+    ];
+    document.getElementById("item-detail-withdrawal-fields").innerHTML = withdrawalFields.map(([l, v]) => detailRow(l, v)).join("");
   }
 }
 
@@ -296,7 +602,7 @@ async function handleWithdraw(itemId) {
     await loadInventory();
     if (currentSupplierDetailId) await showSupplierDetail(currentSupplierDetailId);
   } catch (err) {
-    alert(err.message);
+    showAlert("inventory-alert-slot", err.message, "error");
   }
 }
 
@@ -312,9 +618,9 @@ async function loadReportSummary() {
   document.getElementById("report-stats").innerHTML = stats
     .map(
       (s) => `
-      <div class="stat-card">
-        <span class="stat-label">${s.label}</span>
-        <span class="stat-value">${s.value}</span>
+      <div class="overflow-hidden rounded-lg bg-white px-4 py-5 shadow-sm sm:p-6 dark:bg-gray-800/75 dark:inset-ring dark:inset-ring-white/10">
+        <dt class="truncate text-sm font-medium text-gray-500 dark:text-gray-400">${s.label}</dt>
+        <dd class="mt-1 text-2xl font-semibold tracking-tight text-gray-900 dark:text-white">${s.value}</dd>
       </div>
     `
     )
@@ -335,9 +641,9 @@ async function loadReportByCategory() {
     .map(
       (r) => `
       <tr>
-        <td>${r.category ?? "sem categoria"}</td>
-        <td>${r.count}</td>
-        <td>${currency.format(r.total_revenue)}</td>
+        <td class="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-gray-900 sm:pl-0 dark:text-white">${r.category ?? "sem categoria"}</td>
+        <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${r.count}</td>
+        <td class="py-4 pr-4 pl-3 text-sm whitespace-nowrap text-gray-500 sm:pr-0 dark:text-gray-400">${currency.format(r.total_revenue)}</td>
       </tr>
     `
     )
@@ -358,11 +664,11 @@ async function loadReportBySupplier() {
     .map(
       (r) => `
       <tr>
-        <td>${r.supplier_name}</td>
-        <td>${r.owner_name}</td>
-        <td>${r.count}</td>
-        <td>${currency.format(r.total_revenue)}</td>
-        <td>${currency.format(r.total_commission)}</td>
+        <td class="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-gray-900 sm:pl-0 dark:text-white">${r.supplier_name}</td>
+        <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${r.owner_name}</td>
+        <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${r.count}</td>
+        <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${currency.format(r.total_revenue)}</td>
+        <td class="py-4 pr-4 pl-3 text-sm whitespace-nowrap text-gray-500 sm:pr-0 dark:text-gray-400">${currency.format(r.total_commission)}</td>
       </tr>
     `
     )
@@ -384,9 +690,9 @@ async function loadReportTimeline() {
     .map(
       (r) => `
       <tr>
-        <td>${r.period}</td>
-        <td>${r.count}</td>
-        <td>${currency.format(r.total_revenue)}</td>
+        <td class="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-gray-900 sm:pl-0 dark:text-white">${r.period}</td>
+        <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${r.count}</td>
+        <td class="py-4 pr-4 pl-3 text-sm whitespace-nowrap text-gray-500 sm:pr-0 dark:text-gray-400">${currency.format(r.total_revenue)}</td>
       </tr>
     `
     )
@@ -400,7 +706,7 @@ async function loadReports() {
 function setFormMessage(elementId, text, kind) {
   const el = document.getElementById(elementId);
   el.textContent = text;
-  el.className = "form-message" + (kind ? " " + kind : "");
+  el.className = "text-sm" + (kind === "success" ? " text-green-600 dark:text-green-400" : kind === "error" ? " text-red-600 dark:text-red-400" : " text-gray-500 dark:text-gray-400");
 }
 
 async function handleSubmit(event) {
@@ -412,13 +718,23 @@ async function handleSubmit(event) {
   formData.append(kind === "owner" ? "owner_id" : "supplier_id", id);
   formData.append("price", document.getElementById("price").value);
 
+  const department = document.getElementById("department").value;
   const category = document.getElementById("category").value;
+  const brand = document.getElementById("brand").value;
   const size = document.getElementById("size").value;
   const condition = document.getElementById("condition").value;
+  const color = document.getElementById("color").value;
+  const material = document.getElementById("material").value;
+  const observations = document.getElementById("observations").value;
   const override = document.getElementById("commission_override").value;
+  if (department) formData.append("department", department);
   if (category) formData.append("category", category);
+  if (brand) formData.append("brand", brand);
   if (size) formData.append("size", size);
   if (condition) formData.append("condition", condition);
+  if (color) formData.append("color", color);
+  if (material) formData.append("material", material);
+  if (observations) formData.append("observations", observations);
   if (override) formData.append("commission_pct_override", override);
 
   for (const file of document.getElementById("photos").files) {
@@ -435,7 +751,10 @@ async function handleSubmit(event) {
     const item = await res.json();
     setFormMessage("form-message", `Peça ${item.sku} adicionada`, "success");
     event.target.reset();
-    loadInventory();
+    updateCategoryOptions("");
+    await loadInventory();
+    document.getElementById("item-drawer").close();
+    setFormMessage("form-message", "", "");
   } catch (err) {
     setFormMessage("form-message", err.message, "error");
   }
@@ -462,17 +781,17 @@ async function handleSaleSubmit(event) {
       throw new Error(err.detail || "não foi possível registrar a venda");
     }
     const sale = await res.json();
-    setFormMessage(
-      "sale-message",
-      `Venda de ${sale.sku} registrada: ` +
-        `${ownerAName} ${currency.format(sale.split.owner_a)}, ` +
-        `${ownerBName} ${currency.format(sale.split.owner_b)}, ` +
-        `Fornecedora ${currency.format(sale.split.supplier)}`,
-      "success"
-    );
     await loadInventory();
     await loadSales();
     await loadReports();
+    document.getElementById("sale-drawer").close();
+    setFormMessage("sale-message", "", "");
+    showAlert(
+      "sales-alert-slot",
+      `Venda de ${sale.sku} registrada: ${ownerAName} ${currency.format(sale.split.owner_a)}, ` +
+        `${ownerBName} ${currency.format(sale.split.owner_b)}, Fornecedora ${currency.format(sale.split.supplier)}`,
+      "success"
+    );
   } catch (err) {
     setFormMessage("sale-message", err.message, "error");
   }
@@ -496,9 +815,12 @@ async function handleSupplierSubmit(event) {
       throw new Error(err.detail || "não foi possível salvar a fornecedora");
     }
     const supplier = await res.json();
-    setFormMessage("supplier-message", `Fornecedora ${supplier.name} adicionada`, "success");
     event.target.reset();
     await loadAssignments();
+    await loadSuppliers();
+    document.getElementById("supplier-drawer").close();
+    setFormMessage("supplier-message", "", "");
+    showAlert("suppliers-alert-slot", `Fornecedora ${supplier.name} adicionada.`, "success");
   } catch (err) {
     setFormMessage("supplier-message", err.message, "error");
   }
@@ -506,12 +828,20 @@ async function handleSupplierSubmit(event) {
 
 document.getElementById("item-form").addEventListener("submit", handleSubmit);
 document.getElementById("status-filter").addEventListener("change", loadInventory);
+document.getElementById("department-filter").addEventListener("change", loadInventory);
+document.getElementById("department").addEventListener("change", (e) => updateCategoryOptions(e.target.value));
+document.getElementById("category").addEventListener("change", (e) => updateSizeField(document.getElementById("department").value, e.target.value));
 document.getElementById("sale-form").addEventListener("submit", handleSaleSubmit);
 document.getElementById("sale-item").addEventListener("change", updateSalePricePlaceholder);
 document.getElementById("supplier-form").addEventListener("submit", handleSupplierSubmit);
 document.getElementById("timeline-granularity").addEventListener("change", loadReportTimeline);
+window.addEventListener("hashchange", showView);
 
+renderNav();
+populateSelect("department", ITEM_DEPARTMENTS, "Selecione o departamento");
+populateSelect("department-filter", ITEM_DEPARTMENTS, "Todos os departamentos");
+updateCategoryOptions("");
+populateSelect("size", ITEM_SIZES, "Selecione o tamanho");
+populateSelect("condition", ITEM_CONDITIONS, "Selecione a condição");
 loadHealth();
-loadAssignments().then(loadInventory);
-loadSales();
-loadReports();
+loadAssignments().then(showView);

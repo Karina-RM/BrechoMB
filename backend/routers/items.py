@@ -7,7 +7,18 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from backend.db import PHOTOS_DIR, get_connection
 from backend.domain import resolve_side
-from backend.schemas import ItemOut, ItemUpdate
+from backend.enums import (
+    DEPARTMENT_CATEGORIES,
+    SHOE_SIZE_CATEGORIES,
+    SIZELESS_CATEGORIES,
+    ItemCategory,
+    ItemCondition,
+    ItemDepartment,
+    ItemSize,
+    ShoeSize,
+)
+from backend.routers.sales import SALE_SELECT, _row_to_sale
+from backend.schemas import ItemDetailOut, ItemOut, ItemUpdate
 
 router = APIRouter(prefix="/api/items", tags=["items"])
 
@@ -45,8 +56,13 @@ def create_item(
     supplier_id: Optional[int] = Form(None),
     commission_pct_override: Optional[float] = Form(None),
     size: Optional[str] = Form(None),
-    condition: Optional[str] = Form(None),
-    category: Optional[str] = Form(None),
+    condition: Optional[ItemCondition] = Form(None),
+    department: Optional[ItemDepartment] = Form(None),
+    category: Optional[ItemCategory] = Form(None),
+    brand: Optional[str] = Form(None),
+    color: Optional[str] = Form(None),
+    material: Optional[str] = Form(None),
+    observations: Optional[str] = Form(None),
     price: float = Form(...),
     photos: List[UploadFile] = File(default=[]),
 ):
@@ -54,6 +70,14 @@ def create_item(
         raise HTTPException(400, "informe a proprietária ou a fornecedora da peça, mas não as duas")
     if price <= 0:
         raise HTTPException(400, "o preço deve ser maior que zero")
+    if category is not None and department is not None and category not in DEPARTMENT_CATEGORIES[department]:
+        raise HTTPException(400, f"categoria '{category.value}' não pertence ao departamento '{department.value}'")
+    if size is not None:
+        if category in SIZELESS_CATEGORIES:
+            raise HTTPException(400, f"a categoria '{category.value}' não usa tamanho")
+        allowed_sizes = ShoeSize if category in SHOE_SIZE_CATEGORIES else ItemSize
+        if size not in {s.value for s in allowed_sizes}:
+            raise HTTPException(400, f"tamanho inválido: '{size}'")
 
     conn = get_connection()
     try:
@@ -65,12 +89,12 @@ def create_item(
             """
             INSERT INTO items
                 (sku, owner_id, supplier_id, commission_pct_override, photo_paths,
-                 size, condition, category, price, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_stock')
+                 size, condition, department, category, brand, color, material, observations, price, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_stock')
             """,
             (
                 sku, owner_id, supplier_id, commission_pct_override, json.dumps(photo_paths),
-                size, condition, category, price,
+                size, condition, department, category, brand, color, material, observations, price,
             ),
         )
         conn.commit()
@@ -81,28 +105,43 @@ def create_item(
 
 
 @router.get("", response_model=List[ItemOut])
-def list_items(status: Optional[str] = None):
+def list_items(status: Optional[str] = None, department: Optional[str] = None):
     conn = get_connection()
     try:
+        clauses = []
+        params: list = []
         if status:
-            rows = conn.execute(
-                "SELECT * FROM items WHERE status = ? ORDER BY intake_date DESC", (status,)
-            ).fetchall()
-        else:
-            rows = conn.execute("SELECT * FROM items ORDER BY intake_date DESC").fetchall()
+            clauses.append("status = ?")
+            params.append(status)
+        if department:
+            clauses.append("department = ?")
+            params.append(department)
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        rows = conn.execute(f"SELECT * FROM items {where} ORDER BY intake_date DESC", params).fetchall()
         return [_row_to_item(r) for r in rows]
     finally:
         conn.close()
 
 
-@router.get("/{item_id}", response_model=ItemOut)
+@router.get("/{item_id}", response_model=ItemDetailOut)
 def get_item(item_id: int):
     conn = get_connection()
     try:
         row = conn.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
         if row is None:
             raise HTTPException(404, "peça não encontrada")
-        return _row_to_item(row)
+        detail = _row_to_item(row)
+
+        sale_row = conn.execute(SALE_SELECT + " WHERE sales.item_id = ?", (item_id,)).fetchone()
+        detail["sale"] = _row_to_sale(sale_row) if sale_row else None
+
+        withdrawal_row = conn.execute(
+            "SELECT withdrawn_date FROM withdrawals WHERE item_id = ? ORDER BY withdrawn_date DESC LIMIT 1",
+            (item_id,),
+        ).fetchone()
+        detail["withdrawn_date"] = withdrawal_row["withdrawn_date"] if withdrawal_row else None
+
+        return detail
     finally:
         conn.close()
 
