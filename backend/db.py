@@ -3,7 +3,9 @@ from pathlib import Path
 
 from backend.models import create_schema, seed_owners
 
-DB_PATH = Path(__file__).resolve().parent.parent / "data" / "brecho.db"
+DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+DB_PATH = DATA_DIR / "brecho.db"
+PHOTOS_DIR = DATA_DIR / "photos"
 
 
 def get_connection() -> sqlite3.Connection:

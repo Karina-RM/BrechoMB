@@ -2,47 +2,92 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Brechó</title>
-<style>
-  body {
-    margin: 0;
-    height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    background: #faf8f5;
-    color: #2b2622;
-  }
-  .card {
-    text-align: center;
-  }
-  h1 {
-    font-weight: 600;
-    font-size: 1.75rem;
-    margin-bottom: 0.5rem;
-  }
-  #status {
-    font-size: 0.95rem;
-    color: #8a8178;
-  }
-</style>
+<link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <div class="card">
-    <h1>Brechó</h1>
-    <div id="status">checking backend…</div>
+  <div class="app">
+    <header class="app-header">
+      <h1>Brechó</h1>
+      <span id="backend-status" class="status-pill">checking backend…</span>
+    </header>
+
+    <main class="layout">
+      <section class="panel">
+        <h2>Add item</h2>
+        <form id="item-form" class="item-form">
+          <label>
+            Assignment
+            <select id="assignment" required></select>
+          </label>
+
+          <div class="grid-2">
+            <label>
+              Category
+              <input type="text" id="category" placeholder="e.g. vestido" />
+            </label>
+            <label>
+              Size
+              <input type="text" id="size" placeholder="e.g. M" />
+            </label>
+          </div>
+
+          <div class="grid-2">
+            <label>
+              Condition
+              <input type="text" id="condition" placeholder="e.g. ótimo" />
+            </label>
+            <label>
+              Price (R$)
+              <input type="number" id="price" step="0.01" min="0.01" required />
+            </label>
+          </div>
+
+          <label>
+            Commission override (%)
+            <input type="number" id="commission_override" step="0.1" min="0" placeholder="uses supplier default" />
+          </label>
+
+          <label>
+            Photos
+            <input type="file" id="photos" accept="image/*" multiple />
+          </label>
+
+          <button type="submit">Add to inventory</button>
+          <p id="form-message" class="form-message"></p>
+        </form>
+      </section>
+
+      <section class="panel panel-wide">
+        <div class="panel-header">
+          <h2>Inventory</h2>
+          <select id="status-filter">
+            <option value="">All statuses</option>
+            <option value="in_stock">In stock</option>
+            <option value="sold">Sold</option>
+            <option value="withdrawn">Withdrawn</option>
+          </select>
+        </div>
+        <table class="inventory-table">
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>Category</th>
+              <th>Size</th>
+              <th>Condition</th>
+              <th>Price</th>
+              <th>Belongs to</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="inventory-body"></tbody>
+        </table>
+        <p id="inventory-empty" class="empty-state" hidden>No items yet.</p>
+      </section>
+    </main>
   </div>
-  <script>
-    fetch("/api/health")
-      .then((r) => r.json())
-      .then((data) => {
-        document.getElementById("status").textContent =
-          "backend status: " + data.status;
-      })
-      .catch(() => {
-        document.getElementById("status").textContent = "backend unreachable";
-      });
-  </script>
+
+  <script src="/app.js"></script>
 </body>
 </html>
