@@ -300,6 +300,103 @@ async function handleWithdraw(itemId) {
   }
 }
 
+async function loadReportSummary() {
+  const summary = await fetch("/api/reports/summary").then((r) => r.json());
+  const stats = [
+    { label: "Total de vendas", value: String(summary.total_sales) },
+    { label: "Receita total", value: currency.format(summary.total_revenue) },
+    { label: summary.owner_a_name, value: currency.format(summary.owner_a_earnings) },
+    { label: summary.owner_b_name, value: currency.format(summary.owner_b_earnings) },
+    { label: "Pago a fornecedoras", value: currency.format(summary.supplier_payouts) },
+  ];
+  document.getElementById("report-stats").innerHTML = stats
+    .map(
+      (s) => `
+      <div class="stat-card">
+        <span class="stat-label">${s.label}</span>
+        <span class="stat-value">${s.value}</span>
+      </div>
+    `
+    )
+    .join("");
+}
+
+async function loadReportByCategory() {
+  const rows = await fetch("/api/reports/by-category").then((r) => r.json());
+  const body = document.getElementById("report-category-body");
+  const empty = document.getElementById("report-category-empty");
+  body.innerHTML = "";
+  if (rows.length === 0) {
+    empty.hidden = false;
+    return;
+  }
+  empty.hidden = true;
+  body.innerHTML = rows
+    .map(
+      (r) => `
+      <tr>
+        <td>${r.category ?? "sem categoria"}</td>
+        <td>${r.count}</td>
+        <td>${currency.format(r.total_revenue)}</td>
+      </tr>
+    `
+    )
+    .join("");
+}
+
+async function loadReportBySupplier() {
+  const rows = await fetch("/api/reports/by-supplier").then((r) => r.json());
+  const body = document.getElementById("report-supplier-body");
+  const empty = document.getElementById("report-supplier-empty");
+  body.innerHTML = "";
+  if (rows.length === 0) {
+    empty.hidden = false;
+    return;
+  }
+  empty.hidden = true;
+  body.innerHTML = rows
+    .map(
+      (r) => `
+      <tr>
+        <td>${r.supplier_name}</td>
+        <td>${r.owner_name}</td>
+        <td>${r.count}</td>
+        <td>${currency.format(r.total_revenue)}</td>
+        <td>${currency.format(r.total_commission)}</td>
+      </tr>
+    `
+    )
+    .join("");
+}
+
+async function loadReportTimeline() {
+  const granularity = document.getElementById("timeline-granularity").value;
+  const rows = await fetch(`/api/reports/timeline?granularity=${granularity}`).then((r) => r.json());
+  const body = document.getElementById("report-timeline-body");
+  const empty = document.getElementById("report-timeline-empty");
+  body.innerHTML = "";
+  if (rows.length === 0) {
+    empty.hidden = false;
+    return;
+  }
+  empty.hidden = true;
+  body.innerHTML = rows
+    .map(
+      (r) => `
+      <tr>
+        <td>${r.period}</td>
+        <td>${r.count}</td>
+        <td>${currency.format(r.total_revenue)}</td>
+      </tr>
+    `
+    )
+    .join("");
+}
+
+async function loadReports() {
+  await Promise.all([loadReportSummary(), loadReportByCategory(), loadReportBySupplier(), loadReportTimeline()]);
+}
+
 function setFormMessage(elementId, text, kind) {
   const el = document.getElementById(elementId);
   el.textContent = text;
@@ -375,6 +472,7 @@ async function handleSaleSubmit(event) {
     );
     await loadInventory();
     await loadSales();
+    await loadReports();
   } catch (err) {
     setFormMessage("sale-message", err.message, "error");
   }
@@ -411,7 +509,9 @@ document.getElementById("status-filter").addEventListener("change", loadInventor
 document.getElementById("sale-form").addEventListener("submit", handleSaleSubmit);
 document.getElementById("sale-item").addEventListener("change", updateSalePricePlaceholder);
 document.getElementById("supplier-form").addEventListener("submit", handleSupplierSubmit);
+document.getElementById("timeline-granularity").addEventListener("change", loadReportTimeline);
 
 loadHealth();
 loadAssignments().then(loadInventory);
 loadSales();
+loadReports();

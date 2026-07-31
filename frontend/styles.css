@@ -186,6 +186,43 @@ button:hover { opacity: 0.9; }
 }
 .subsection-title:first-of-type { margin-top: 0; }
 
+.subsection-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 20px;
+}
+.subsection-header .subsection-title { margin: 0; }
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.stat-card {
+  background: var(--accent-soft);
+  border-radius: 8px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stat-card .stat-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+}
+
+.stat-card .stat-value {
+  font-size: 1.25rem;
+  font-weight: 650;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
 .btn-small {
   padding: 5px 10px;
   font-size: 0.78rem;

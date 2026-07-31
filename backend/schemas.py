@@ -108,3 +108,34 @@ class SaleOut(BaseModel):
     sale_price: float
     sale_date: str
     split: SplitOut
+
+
+class ReportSummaryOut(BaseModel):
+    total_sales: int
+    total_revenue: float
+    owner_a_name: str
+    owner_a_earnings: float
+    owner_b_name: str
+    owner_b_earnings: float
+    supplier_payouts: float
+
+
+class CategoryReportRow(BaseModel):
+    category: Optional[str]
+    count: int
+    total_revenue: float
+
+
+class SupplierReportRow(BaseModel):
+    supplier_id: int
+    supplier_name: str
+    owner_name: str
+    count: int
+    total_revenue: float
+    total_commission: float
+
+
+class TimelineRow(BaseModel):
+    period: str
+    count: int
+    total_revenue: float
