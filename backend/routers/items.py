@@ -6,6 +6,7 @@ from typing import List, Optional
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from backend.db import PHOTOS_DIR, get_connection
+from backend.domain import resolve_side
 from backend.schemas import ItemOut, ItemUpdate
 
 router = APIRouter(prefix="/api/items", tags=["items"])
@@ -15,23 +16,6 @@ def _row_to_item(row: sqlite3.Row) -> dict:
     data = dict(row)
     data["photo_paths"] = json.loads(data["photo_paths"])
     return data
-
-
-def _resolve_side(conn: sqlite3.Connection, owner_id: Optional[int], supplier_id: Optional[int]) -> str:
-    """Which owner's side an item belongs to: 'A' (cut-owner) or 'B' — used for the SKU prefix."""
-    if owner_id is not None:
-        row = conn.execute("SELECT is_cut_owner FROM owners WHERE id = ?", (owner_id,)).fetchone()
-        if row is None:
-            raise HTTPException(400, f"owner_id {owner_id} does not exist")
-        return "A" if row["is_cut_owner"] else "B"
-
-    row = conn.execute(
-        "SELECT o.is_cut_owner FROM suppliers s JOIN owners o ON o.id = s.owner_id WHERE s.id = ?",
-        (supplier_id,),
-    ).fetchone()
-    if row is None:
-        raise HTTPException(400, f"supplier_id {supplier_id} does not exist")
-    return "A" if row["is_cut_owner"] else "B"
 
 
 def _generate_sku(conn: sqlite3.Connection, side: str) -> str:
@@ -67,13 +51,13 @@ def create_item(
     photos: List[UploadFile] = File(default=[]),
 ):
     if (owner_id is None) == (supplier_id is None):
-        raise HTTPException(400, "exactly one of owner_id or supplier_id is required")
+        raise HTTPException(400, "informe a proprietária ou a fornecedora da peça, mas não as duas")
     if price <= 0:
-        raise HTTPException(400, "price must be positive")
+        raise HTTPException(400, "o preço deve ser maior que zero")
 
     conn = get_connection()
     try:
-        side = _resolve_side(conn, owner_id, supplier_id)
+        side = resolve_side(conn, owner_id, supplier_id)
         sku = _generate_sku(conn, side)
         photo_paths = _save_photos(sku, photos)
 
@@ -117,7 +101,7 @@ def get_item(item_id: int):
     try:
         row = conn.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
         if row is None:
-            raise HTTPException(404, "item not found")
+            raise HTTPException(404, "peça não encontrada")
         return _row_to_item(row)
     finally:
         conn.close()
@@ -129,7 +113,7 @@ def update_item(item_id: int, payload: ItemUpdate):
     try:
         row = conn.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
         if row is None:
-            raise HTTPException(404, "item not found")
+            raise HTTPException(404, "peça não encontrada")
 
         updates = payload.model_dump(exclude_unset=True)
         if updates:

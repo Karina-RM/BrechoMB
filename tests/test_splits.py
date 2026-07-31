@@ -39,3 +39,29 @@ def test_rejects_negative_commission():
     except ValueError:
         return
     assert False, "expected ValueError for negative commission_pct"
+
+
+def test_single_owner_a_gets_full_remainder_regardless_of_side():
+    # Owner B has left: even a nominally Owner-B-side garimpada piece pays Owner A in full.
+    result = calculate_split(side="B", sale_price=100, commission_pct=0, single_owner="A")
+    assert result == {"owner_a": 100.0, "owner_b": 0.0, "supplier": 0.0}
+
+
+def test_single_owner_a_still_pays_supplier_commission():
+    # Supplier deals are unaffected by the ownership change — commission still comes off the top.
+    result = calculate_split(side="B", sale_price=100, commission_pct=30, single_owner="A")
+    assert result == {"owner_a": 70.0, "owner_b": 0.0, "supplier": 30.0}
+
+
+def test_single_owner_b_gets_full_remainder():
+    # Symmetric case, in case it's ever Owner A who departs instead.
+    result = calculate_split(side="A", sale_price=100, commission_pct=10, single_owner="B")
+    assert result == {"owner_a": 0.0, "owner_b": 90.0, "supplier": 10.0}
+
+
+def test_rejects_invalid_single_owner():
+    try:
+        calculate_split(side="A", sale_price=100, single_owner="C")
+    except ValueError:
+        return
+    assert False, "expected ValueError for invalid single_owner"

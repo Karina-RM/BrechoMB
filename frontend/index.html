@@ -10,81 +10,123 @@
   <div class="app">
     <header class="app-header">
       <h1>Brechó</h1>
-      <span id="backend-status" class="status-pill">checking backend…</span>
+      <span id="backend-status" class="status-pill">verificando conexão…</span>
     </header>
 
     <main class="layout">
-      <section class="panel">
-        <h2>Add item</h2>
-        <form id="item-form" class="item-form">
-          <label>
-            Assignment
-            <select id="assignment" required></select>
-          </label>
+      <div class="sidebar">
+        <section class="panel">
+          <h2>Adicionar peça</h2>
+          <form id="item-form" class="item-form">
+            <label>
+              Pertence a
+              <select id="assignment" required></select>
+            </label>
 
-          <div class="grid-2">
+            <div class="grid-2">
+              <label>
+                Categoria
+                <input type="text" id="category" placeholder="ex: vestido" />
+              </label>
+              <label>
+                Tamanho
+                <input type="text" id="size" placeholder="ex: M" />
+              </label>
+            </div>
+
+            <div class="grid-2">
+              <label>
+                Condição
+                <input type="text" id="condition" placeholder="ex: ótimo" />
+              </label>
+              <label>
+                Preço (R$)
+                <input type="number" id="price" step="0.01" min="0.01" required />
+              </label>
+            </div>
+
             <label>
-              Category
-              <input type="text" id="category" placeholder="e.g. vestido" />
+              Comissão específica (%)
+              <input type="number" id="commission_override" step="0.1" min="0" placeholder="usa o padrão da fornecedora" />
             </label>
+
             <label>
-              Size
-              <input type="text" id="size" placeholder="e.g. M" />
+              Fotos
+              <input type="file" id="photos" accept="image/*" multiple />
             </label>
+
+            <button type="submit">Adicionar ao estoque</button>
+            <p id="form-message" class="form-message"></p>
+          </form>
+        </section>
+
+        <section class="panel">
+          <h2>Registrar venda</h2>
+          <form id="sale-form" class="item-form">
+            <label>
+              Peça vendida
+              <select id="sale-item" required></select>
+            </label>
+
+            <label>
+              Preço de venda (R$)
+              <input type="number" id="sale-price" step="0.01" min="0.01" required />
+            </label>
+
+            <button type="submit">Registrar venda</button>
+            <p id="sale-message" class="form-message"></p>
+          </form>
+        </section>
+      </div>
+
+      <div class="content">
+        <section class="panel panel-wide">
+          <div class="panel-header">
+            <h2>Estoque</h2>
+            <select id="status-filter">
+              <option value="">Todos os status</option>
+              <option value="in_stock">Em estoque</option>
+              <option value="sold">Vendido</option>
+              <option value="withdrawn">Retirado</option>
+            </select>
           </div>
+          <table class="inventory-table">
+            <thead>
+              <tr>
+                <th>SKU</th>
+                <th>Categoria</th>
+                <th>Tamanho</th>
+                <th>Condição</th>
+                <th>Preço</th>
+                <th>Pertence a</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="inventory-body"></tbody>
+          </table>
+          <p id="inventory-empty" class="empty-state" hidden>Nenhuma peça cadastrada ainda.</p>
+        </section>
 
-          <div class="grid-2">
-            <label>
-              Condition
-              <input type="text" id="condition" placeholder="e.g. ótimo" />
-            </label>
-            <label>
-              Price (R$)
-              <input type="number" id="price" step="0.01" min="0.01" required />
-            </label>
+        <section class="panel panel-wide">
+          <div class="panel-header">
+            <h2>Vendas registradas</h2>
           </div>
-
-          <label>
-            Commission override (%)
-            <input type="number" id="commission_override" step="0.1" min="0" placeholder="uses supplier default" />
-          </label>
-
-          <label>
-            Photos
-            <input type="file" id="photos" accept="image/*" multiple />
-          </label>
-
-          <button type="submit">Add to inventory</button>
-          <p id="form-message" class="form-message"></p>
-        </form>
-      </section>
-
-      <section class="panel panel-wide">
-        <div class="panel-header">
-          <h2>Inventory</h2>
-          <select id="status-filter">
-            <option value="">All statuses</option>
-            <option value="in_stock">In stock</option>
-            <option value="sold">Sold</option>
-            <option value="withdrawn">Withdrawn</option>
-          </select>
-        </div>
-        <table class="inventory-table">
-          <thead>
-            <tr>
-              <th>SKU</th>
-              <th>Category</th>
-              <th>Size</th>
-              <th>Condition</th>
-              <th>Price</th>
-              <th>Belongs to</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody id="inventory-body"></tbody>
-        </table>
-        <p id="inventory-empty" class="empty-state" hidden>No items yet.</p>
-      </section>
+          <table class="inventory-table">
+            <thead>
+              <tr>
+                <th>SKU</th>
+                <th>Data</th>
+                <th>Preço de venda</th>
+                <th id="owner-a-header">Dona A</th>
+                <th id="owner-b-header">Dona B</th>
+                <th>Fornecedora</th>
+              </tr>
+            </thead>
+            <tbody id="sales-body"></tbody>
+          </table>
+          <p id="sales-empty" class="empty-state" hidden>Nenhuma venda registrada ainda.</p>
+        </section>
+      </div>
     </main>
   </div>
 

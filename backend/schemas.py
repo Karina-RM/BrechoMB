@@ -7,6 +7,11 @@ class OwnerOut(BaseModel):
     id: int
     name: str
     is_cut_owner: bool
+    active: bool
+
+
+class OwnerUpdate(BaseModel):
+    active: bool
 
 
 class SupplierOut(BaseModel):
@@ -37,3 +42,23 @@ class ItemUpdate(BaseModel):
     category: Optional[str] = None
     price: Optional[float] = None
     commission_pct_override: Optional[float] = None
+
+
+class SaleCreate(BaseModel):
+    item_id: int
+    sale_price: float
+
+
+class SplitOut(BaseModel):
+    owner_a: float
+    owner_b: float
+    supplier: float
+
+
+class SaleOut(BaseModel):
+    id: int
+    item_id: int
+    sku: str
+    sale_price: float
+    sale_date: str
+    split: SplitOut

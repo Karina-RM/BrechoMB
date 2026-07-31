@@ -4,7 +4,8 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS owners (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL,
-    is_cut_owner INTEGER NOT NULL DEFAULT 0
+    is_cut_owner INTEGER NOT NULL DEFAULT 0,
+    active INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE TABLE IF NOT EXISTS suppliers (
@@ -64,6 +65,6 @@ def create_schema(conn: sqlite3.Connection) -> None:
 def seed_owners(conn: sqlite3.Connection) -> None:
     if conn.execute("SELECT COUNT(*) FROM owners").fetchone()[0]:
         return
-    conn.execute("INSERT INTO owners (name, is_cut_owner) VALUES ('Owner A', 1)")
-    conn.execute("INSERT INTO owners (name, is_cut_owner) VALUES ('Owner B', 0)")
+    conn.execute("INSERT INTO owners (name, is_cut_owner) VALUES ('Dona A', 1)")
+    conn.execute("INSERT INTO owners (name, is_cut_owner) VALUES ('Dona B', 0)")
     conn.commit()

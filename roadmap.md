@@ -17,6 +17,8 @@ So every item in the store belongs to one of three categories:
 2. **Garimpada — Owner B's own piece**
 3. **Fornecedora piece** — consigned by a supplier, and each supplier is affiliated with one specific owner (A or B)
 
+> **Supplier-owner affiliation is immutable in the app.** A supplier is tied to whichever owner she first supplied, permanently — there's no "reassign owner" feature. If a supplier ever genuinely starts supplying the other owner instead, that's an exceptional real-world situation resolved directly by the support/back-office team (e.g. a manual database correction), not something the app exposes as a normal edit.
+
 ## 2. Revenue Split Rules (as defined so far)
 
 > ⚠️ These are the rules as described in planning conversation. Flagged as **[CONFIRM]** where it would be good to double check the read-back is 100% correct before building.
@@ -28,6 +30,7 @@ So every item in the store belongs to one of three categories:
 - **Owner B** receives whatever remains after the applicable cuts on her side's sales (her garimpada pieces, minus Owner A's 20% cut; or her suppliers' pieces, minus Owner A's 20% cut and minus the supplier's commission).
 - **Suppliers (fornecedoras)** receive a **commission %** of the full sale price of their own pieces sold. This percentage is **not hardcoded** — must be configurable per supplier (possibly per item).
 - If a supplier's piece is **not sold**, the supplier can **withdraw it at any time, at no cost**.
+- **Owner departure (rare event):** if one owner leaves the business, the remaining owner (who also owns the building) receives the **full remainder of every sale going forward**, regardless of which owner's side the item was nominally on — she absorbs what would have been the departed owner's share. Suppliers are unaffected and still get paid their commission % as usual. Implemented as a manual "deactivate owner" action, not a self-serve UI control — it's a back-office/support action, same treatment as the supplier-reassignment case above. Existing recorded sales/splits are historical and never recomputed.
 
 ### Worked example (for a supplier piece belonging to Owner B's side, sale price = P):
 - Owner A's cut: `0.20 × P`
@@ -61,6 +64,8 @@ So every item in the store belongs to one of three categories:
 - **Currency/locale:** BRL (R$) formatting — confirmed.
 - **SKU scheme:** auto-generated, simple sequential (exact format TBD during build) — confirmed.
 - **Withdrawals:** when a supplier takes back an unsold piece, it is **not deleted** — it's kept as a **greyed-out / "withdrawn" entry** in inventory history. This enables tracking **recurring short-term withdrawal patterns per supplier**, to help flag unreliable suppliers over time (v1 feature: supplier reliability view/report).
+- **Supplier-owner affiliation is immutable in the app:** editable fields on a supplier are name and commission % only. If a supplier's owner affiliation genuinely needs to change, that's a back-office/support correction outside the app, not an in-app edit.
+- **Owner departure:** implemented as an `active` flag per owner (`PATCH /api/owners/{id}`, no UI button). When exactly one owner is active, every sale routes its full remainder to that owner regardless of the item's nominal side; supplier commission still applies. Can't deactivate the last active owner. Reversible — reactivating an owner immediately restores the normal 20%-cut split.
 
 ## 6. Open Questions / Decisions Still Needed
 
@@ -86,6 +91,8 @@ So every item in the store belongs to one of three categories:
 | 2026-07-31 | Item intake captures: photo(s), size, condition, category, price, SKU |
 | 2026-07-31 | Storage: SQLite. Currency: BRL. SKU: auto-generated sequential |
 | 2026-07-31 | Withdrawn supplier pieces kept as greyed-out history entries (not deleted), to enable supplier-reliability tracking (flag recurring short-term withdrawals) |
+| 2026-07-31 | Supplier-owner affiliation is immutable in the app once set; a real change is a back-office/support correction, not an in-app edit feature |
+| 2026-07-31 | If an owner leaves the business, the remaining (building-owning) owner gets full value of every sale going forward; suppliers still get paid; toggled via a back-office `active` flag, not a UI button |
 
 ---
 *This file is meant to be updated throughout planning. Add new decisions to the log and check off open questions as they're resolved.*

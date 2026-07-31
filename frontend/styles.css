@@ -54,6 +54,13 @@ body {
   align-items: start;
 }
 
+.sidebar,
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
 .panel {
   background: color-mix(in srgb, var(--paper) 96%, var(--ink) 4%);
   border: 1px solid var(--line);
