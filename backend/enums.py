@@ -141,3 +141,9 @@ class ItemCondition(str, Enum):
     NOVO_SEM_ETIQUETA = "Novo sem etiqueta"
     SEMINOVO = "Seminovo"
     USADO = "Usado"
+
+
+class PaymentMethod(str, Enum):
+    DINHEIRO = "Dinheiro"
+    CARTAO = "Cartão"
+    PIX = "Pix"

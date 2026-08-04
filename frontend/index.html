@@ -55,10 +55,13 @@
       <div aria-hidden="true" class="h-6 w-px bg-gray-200 lg:hidden dark:bg-white/10"></div>
       <div class="flex flex-1 items-center justify-between">
         <h1 id="page-title" class="text-base font-semibold text-gray-900 dark:text-white">Estoque</h1>
-        <span id="backend-status" class="inline-flex items-center gap-x-1.5 rounded-md px-2 py-1 text-xs font-medium text-gray-900 inset-ring inset-ring-gray-200 dark:text-white dark:inset-ring-white/10">
-          <svg viewBox="0 0 6 6" aria-hidden="true" class="size-1.5 fill-gray-400"><circle r="3" cx="3" cy="3" /></svg>
-          verificando conexão…
-        </span>
+        <div class="flex items-center gap-x-4">
+          <span id="session-indicator" class="text-sm text-gray-500 dark:text-gray-400"></span>
+          <span id="backend-status" class="inline-flex items-center gap-x-1.5 rounded-md px-2 py-1 text-xs font-medium text-gray-900 inset-ring inset-ring-gray-200 dark:text-white dark:inset-ring-white/10">
+            <svg viewBox="0 0 6 6" aria-hidden="true" class="size-1.5 fill-gray-400"><circle r="3" cx="3" cy="3" /></svg>
+            verificando conexão…
+          </span>
+        </div>
       </div>
     </div>
 
@@ -69,75 +72,114 @@
         <section data-view="inventory">
           <div class="md:flex md:items-center md:justify-between">
             <h2 class="text-2xl/7 font-bold text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight dark:text-white">Estoque</h2>
-            <div class="mt-4 flex items-center gap-3 md:mt-0 md:ml-4">
-              <div class="grid grid-cols-1">
-                <select id="department-filter" class="col-start-1 row-start-1 w-52 appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-gray-800">
-                  <option value="">Todos os departamentos</option>
-                </select>
-                <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" class="pointer-events-none col-start-1 row-start-1 mr-2 size-4 self-center justify-self-end text-gray-500 dark:text-gray-400">
-                  <path d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" fill-rule="evenodd" />
-                </svg>
-              </div>
-              <div class="grid grid-cols-1">
-                <select id="status-filter" class="col-start-1 row-start-1 w-44 appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-gray-800">
-                  <option value="">Todos os status</option>
-                  <option value="in_stock">Em estoque</option>
-                  <option value="sold">Vendido</option>
-                  <option value="withdrawn">Retirado</option>
-                </select>
-                <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" class="pointer-events-none col-start-1 row-start-1 mr-2 size-4 self-center justify-self-end text-gray-500 dark:text-gray-400">
-                  <path d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" fill-rule="evenodd" />
-                </svg>
-              </div>
-              <button type="button" id="columns-toggle" class="inline-flex items-center gap-1.5 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-xs inset-ring inset-ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-white dark:shadow-none dark:inset-ring-white/5 dark:hover:bg-white/20">
+            <div class="mt-4 flex flex-wrap items-center gap-3 md:mt-0 md:ml-4">
+              <button type="button" id="inventory-columns-toggle" hidden onclick="toggleInventoryColumns()" class="inline-flex items-center gap-1.5 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-xs inset-ring inset-ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-white dark:shadow-none dark:inset-ring-white/5 dark:hover:bg-white/20">
                 <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-4 shrink-0">
                   <path d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" fill-rule="evenodd" />
                 </svg>
-                <span id="columns-toggle-label">Mostrar mais colunas</span>
+                <span id="inventory-columns-toggle-label">Mostrar mais colunas</span>
+              </button>
+              <button type="button" id="inventory-view-toggle" onclick="toggleInventoryView()" class="inline-flex items-center gap-1.5 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-xs inset-ring inset-ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-white dark:shadow-none dark:inset-ring-white/5 dark:hover:bg-white/20">
+                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-4 shrink-0">
+                  <path d="M2 4.75A.75.75 0 0 1 2.75 4h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 4.75Zm0 5A.75.75 0 0 1 2.75 9h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 9.75Zm0 5a.75.75 0 0 1 .75-.75h14.5a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1-.75-.75Z" />
+                </svg>
+                <span id="inventory-view-toggle-label">Ver em lista</span>
+              </button>
+              <button type="button" id="cart-mode-toggle" onclick="toggleCartMode()" class="inline-flex items-center gap-1.5 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-xs inset-ring inset-ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-white dark:shadow-none dark:inset-ring-white/5 dark:hover:bg-white/20">
+                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-4 shrink-0">
+                  <path d="M1 1.75A.75.75 0 0 1 1.75 1h1.628a1.75 1.75 0 0 1 1.734 1.51L5.18 3H18a.75.75 0 0 1 .728.928l-1.199 4.79A2.25 2.25 0 0 1 15.34 10.5H6.789a.75.75 0 0 0 0 1.5h8.914a.75.75 0 0 1 0 1.5H6.788a2.25 2.25 0 0 1-2.234-2.567L6.16 3.72 5.62 2.925A.25.25 0 0 0 5.408 2.75H1.75A.75.75 0 0 1 1 1.75ZM6 17.5a1 1 0 1 1 2 0 1 1 0 0 1-2 0Zm10 0a1 1 0 1 1 2 0 1 1 0 0 1-2 0Z" />
+                </svg>
+                <span id="cart-mode-toggle-label">Modo carrinho</span>
               </button>
               <button type="button" command="show-modal" commandfor="item-drawer" class="inline-flex items-center rounded-md bg-pink-600 px-3 py-2 text-sm font-semibold text-white shadow-xs hover:bg-pink-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600 dark:bg-pink-500 dark:hover:bg-pink-400">+ Adicionar peça</button>
             </div>
           </div>
 
+          <div class="mt-4 flex flex-wrap items-center gap-3">
+            <div class="min-w-56 flex-1">
+              <input type="text" id="inventory-search" placeholder="Buscar por SKU, marca, categoria, cor, material, observações..." class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:placeholder:text-gray-500" />
+            </div>
+            <div class="grid grid-cols-1">
+              <select id="department-filter" class="col-start-1 row-start-1 w-52 appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-gray-800">
+                <option value="">Todos os departamentos</option>
+              </select>
+              <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" class="pointer-events-none col-start-1 row-start-1 mr-2 size-4 self-center justify-self-end text-gray-500 dark:text-gray-400">
+                <path d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" fill-rule="evenodd" />
+              </svg>
+            </div>
+            <div class="grid grid-cols-1">
+              <select id="category-filter" class="col-start-1 row-start-1 w-52 appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-gray-800">
+                <option value="">Todas as categorias</option>
+              </select>
+              <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" class="pointer-events-none col-start-1 row-start-1 mr-2 size-4 self-center justify-self-end text-gray-500 dark:text-gray-400">
+                <path d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" fill-rule="evenodd" />
+              </svg>
+            </div>
+            <div class="grid grid-cols-1">
+              <select id="status-filter" class="col-start-1 row-start-1 w-44 appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-gray-800">
+                <option value="">Todos os status</option>
+                <option value="in_stock">Em estoque</option>
+                <option value="sold">Vendido</option>
+                <option value="withdrawn">Retirado</option>
+              </select>
+              <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" class="pointer-events-none col-start-1 row-start-1 mr-2 size-4 self-center justify-self-end text-gray-500 dark:text-gray-400">
+                <path d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" fill-rule="evenodd" />
+              </svg>
+            </div>
+          </div>
+
           <div id="inventory-alert-slot" class="mt-4"></div>
 
-          <div class="mt-6 flow-root">
+          <div id="cart-bar" hidden class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md bg-pink-50 px-4 py-3 outline outline-pink-200 dark:bg-pink-500/10 dark:outline-pink-500/30">
+            <p id="cart-bar-summary" class="text-sm font-medium text-pink-800 dark:text-pink-300"></p>
+            <div class="flex gap-3">
+              <button type="button" onclick="clearCart()" class="rounded-md bg-white px-3 py-1.5 text-sm font-semibold text-gray-900 shadow-xs inset-ring inset-ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-gray-100 dark:inset-ring-white/5 dark:hover:bg-white/20">Limpar</button>
+              <button type="button" command="show-modal" commandfor="cart-drawer" onclick="openCartDrawer()" class="rounded-md bg-pink-600 px-3 py-1.5 text-sm font-semibold text-white shadow-xs hover:bg-pink-500 dark:bg-pink-500 dark:hover:bg-pink-400">Finalizar venda</button>
+            </div>
+          </div>
+
+          <div id="inventory-grid" class="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"></div>
+
+          <div id="inventory-list-wrapper" hidden class="mt-6 flow-root">
             <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
               <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
-                <table id="inventory-table" class="min-w-full divide-y divide-gray-300 dark:divide-white/15 cols-collapsed">
+                <table id="inventory-list-table" class="min-w-full divide-y divide-gray-300 dark:divide-white/15 cols-collapsed">
                   <thead>
                     <tr>
-                      <th scope="col" class="py-3 pr-3 pl-4 text-left text-xs font-medium tracking-wide text-gray-500 uppercase sm:pl-0 dark:text-gray-400">SKU</th>
+                      <th scope="col" class="py-3 pr-3 pl-4 sm:pl-0"><span class="sr-only">Foto</span></th>
+                      <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">SKU</th>
                       <th scope="col" class="extra-col px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Departamento</th>
                       <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Categoria</th>
                       <th scope="col" class="extra-col px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Marca</th>
-                      <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Tamanho</th>
                       <th scope="col" class="extra-col px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Condição</th>
                       <th scope="col" class="extra-col px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Cor / Estampa</th>
                       <th scope="col" class="extra-col px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Material</th>
                       <th scope="col" class="extra-col px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Observações</th>
                       <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Preço</th>
-                      <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Pertence a</th>
+                      <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Vinculada a</th>
                       <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Status</th>
-                      <th scope="col" class="py-3 pr-4 pl-3 sm:pr-0"><span class="sr-only">Ações</span></th>
+                      <th scope="col" class="py-3 pr-4 pl-3 sm:pr-0"><span class="sr-only">Ação</span></th>
                     </tr>
                   </thead>
-                  <tbody id="inventory-body" class="divide-y divide-gray-200 bg-white dark:divide-white/10 dark:bg-gray-900"></tbody>
+                  <tbody id="inventory-list-body" class="divide-y divide-gray-200 bg-white dark:divide-white/10 dark:bg-gray-900"></tbody>
                 </table>
-                <p id="inventory-empty" hidden class="py-10 text-center text-sm text-gray-500 dark:text-gray-400">Nenhuma peça cadastrada ainda.</p>
               </div>
             </div>
+          </div>
+
+          <p id="inventory-empty" hidden class="py-10 text-center text-sm text-gray-500 dark:text-gray-400">Nenhuma peça cadastrada ainda.</p>
+
+          <div id="inventory-pagination" hidden class="mt-6 flex items-center justify-between">
+            <button type="button" onclick="changeInventoryPage(-1)" class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-xs inset-ring inset-ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-gray-100 dark:inset-ring-white/5 dark:hover:bg-white/20">Anterior</button>
+            <p id="inventory-pagination-label" class="text-sm text-gray-500 dark:text-gray-400"></p>
+            <button type="button" onclick="changeInventoryPage(1)" class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-xs inset-ring inset-ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-gray-100 dark:inset-ring-white/5 dark:hover:bg-white/20">Próxima</button>
           </div>
         </section>
 
         <!-- VENDAS -->
         <section data-view="sales" hidden>
-          <div class="md:flex md:items-center md:justify-between">
-            <h2 class="text-2xl/7 font-bold text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight dark:text-white">Vendas</h2>
-            <div class="mt-4 flex md:mt-0 md:ml-4">
-              <button type="button" command="show-modal" commandfor="sale-drawer" class="inline-flex items-center rounded-md bg-pink-600 px-3 py-2 text-sm font-semibold text-white shadow-xs hover:bg-pink-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600 dark:bg-pink-500 dark:hover:bg-pink-400">+ Registrar venda</button>
-            </div>
-          </div>
+          <h2 class="text-2xl/7 font-bold text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight dark:text-white">Vendas</h2>
+          <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">Vendas são registradas direto na tela de Estoque: "Vender" no card para uma peça, ou "Modo carrinho" para vender várias juntas.</p>
 
           <div id="sales-alert-slot" class="mt-4"></div>
 
@@ -148,11 +190,15 @@
                   <thead>
                     <tr>
                       <th scope="col" class="py-3 pr-3 pl-4 text-left text-xs font-medium tracking-wide text-gray-500 uppercase sm:pl-0 dark:text-gray-400">SKU</th>
+                      <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Recibo</th>
                       <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Data</th>
                       <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Preço de venda</th>
                       <th scope="col" id="owner-a-header" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Dona A</th>
                       <th scope="col" id="owner-b-header" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Dona B</th>
-                      <th scope="col" class="py-3 pr-4 pl-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase sm:pr-0 dark:text-gray-400">Fornecedora</th>
+                      <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Fornecedora</th>
+                      <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Vendida por</th>
+                      <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Pagamento</th>
+                      <th scope="col" class="py-3 pr-4 pl-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase sm:pr-0 dark:text-gray-400">Ações</th>
                     </tr>
                   </thead>
                   <tbody id="sales-body" class="divide-y divide-gray-200 bg-white dark:divide-white/10 dark:bg-gray-900"></tbody>
@@ -181,7 +227,7 @@
                   <thead>
                     <tr>
                       <th scope="col" class="py-3 pr-3 pl-4 text-left text-xs font-medium tracking-wide text-gray-500 uppercase sm:pl-0 dark:text-gray-400">Nome</th>
-                      <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Pertence a</th>
+                      <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Vinculada a</th>
                       <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Comissão (%)</th>
                       <th scope="col" class="py-3 pr-4 pl-3 sm:pr-0"><span class="sr-only">Ações</span></th>
                     </tr>
@@ -214,10 +260,14 @@
 
           <div class="mt-2 md:flex md:items-center md:justify-between">
             <h2 id="supplier-detail-name" class="text-2xl/7 font-bold text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight dark:text-white"></h2>
-            <div class="mt-4 md:mt-0 md:ml-4">
+            <div class="mt-4 flex flex-wrap items-center gap-2 md:mt-0 md:ml-4">
               <span id="supplier-detail-owed" class="inline-flex items-center gap-x-1.5 rounded-md px-2 py-1 text-xs font-medium text-gray-900 inset-ring inset-ring-gray-200 dark:text-white dark:inset-ring-white/10"></span>
+              <span id="supplier-detail-paid" class="inline-flex items-center gap-x-1.5 rounded-md px-2 py-1 text-xs font-medium text-gray-900 inset-ring inset-ring-gray-200 dark:text-white dark:inset-ring-white/10"></span>
+              <button type="button" id="supplier-detail-register-payout" onclick="handleRegisterPayout(currentSupplierDetailId)" class="inline-flex items-center rounded-md bg-pink-600 px-3 py-2 text-sm font-semibold text-white shadow-xs hover:bg-pink-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600 dark:bg-pink-500 dark:hover:bg-pink-400">Registrar repasse</button>
             </div>
           </div>
+
+          <div id="supplier-detail-alert-slot" class="mt-4"></div>
 
           <h3 class="mt-8 text-base font-semibold text-gray-900 dark:text-white">Peças fornecidas</h3>
           <div class="mt-4 flow-root">
@@ -234,6 +284,27 @@
                   </thead>
                   <tbody id="supplier-items-body" class="divide-y divide-gray-200 bg-white dark:divide-white/10 dark:bg-gray-900"></tbody>
                 </table>
+              </div>
+            </div>
+          </div>
+
+          <h3 class="mt-10 text-base font-semibold text-gray-900 dark:text-white">Vendas e repasses</h3>
+          <div class="mt-4 flow-root">
+            <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
+              <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
+                <table class="min-w-full divide-y divide-gray-300 dark:divide-white/15">
+                  <thead>
+                    <tr>
+                      <th scope="col" class="py-3 pr-3 pl-4 text-left text-xs font-medium tracking-wide text-gray-500 uppercase sm:pl-0 dark:text-gray-400">SKU</th>
+                      <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Data da venda</th>
+                      <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Comissão</th>
+                      <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Status</th>
+                      <th scope="col" class="py-3 pr-4 pl-3 sm:pr-0"><span class="sr-only">Ação</span></th>
+                    </tr>
+                  </thead>
+                  <tbody id="supplier-payouts-body" class="divide-y divide-gray-200 bg-white dark:divide-white/10 dark:bg-gray-900"></tbody>
+                </table>
+                <p id="supplier-payouts-empty" hidden class="py-10 text-center text-sm text-gray-500 dark:text-gray-400">Nenhuma venda registrada para esta fornecedora ainda.</p>
               </div>
             </div>
           </div>
@@ -282,7 +353,11 @@
               <h2 id="item-detail-title" class="text-2xl/7 font-bold text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight dark:text-white"></h2>
               <span id="item-detail-status"></span>
             </div>
-            <button type="button" id="item-detail-delete" hidden onclick="handleDeleteItem(currentItemDetailId)" class="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-red-600 shadow-xs inset-ring inset-ring-gray-300 hover:bg-red-50 dark:bg-white/10 dark:text-red-400 dark:shadow-none dark:inset-ring-white/5 dark:hover:bg-red-500/10">Excluir peça</button>
+            <div class="flex gap-3">
+              <button type="button" id="item-detail-edit" onclick="enterItemEditMode()" class="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-xs inset-ring inset-ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-gray-100 dark:shadow-none dark:inset-ring-white/5 dark:hover:bg-white/20">Editar</button>
+              <button type="button" id="item-detail-withdraw" hidden onclick="handleWithdraw(currentItemDetailId)" class="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-red-600 shadow-xs inset-ring inset-ring-gray-300 hover:bg-red-50 dark:bg-white/10 dark:text-red-400 dark:shadow-none dark:inset-ring-white/5 dark:hover:bg-red-500/10">Retirar</button>
+              <button type="button" id="item-detail-delete" hidden onclick="handleDeleteItem(currentItemDetailId)" class="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-red-600 shadow-xs inset-ring inset-ring-gray-300 hover:bg-red-50 dark:bg-white/10 dark:text-red-400 dark:shadow-none dark:inset-ring-white/5 dark:hover:bg-red-500/10">Excluir peça</button>
+            </div>
           </div>
 
           <div id="item-detail-alert-slot" class="mt-4"></div>
@@ -306,15 +381,68 @@
               <dl id="item-detail-withdrawal-fields" class="divide-y divide-gray-100 dark:divide-white/5"></dl>
             </div>
           </div>
+
+          <div id="item-detail-edits" hidden class="mt-10">
+            <h3 class="text-base font-semibold text-gray-900 dark:text-white">Histórico de edições</h3>
+            <div class="mt-4 overflow-hidden bg-white shadow-sm sm:rounded-lg dark:bg-gray-800/50 dark:shadow-none dark:inset-ring dark:inset-ring-white/10">
+              <dl id="item-detail-edits-fields" class="divide-y divide-gray-100 dark:divide-white/5"></dl>
+            </div>
+          </div>
         </section>
 
         <!-- RELATÓRIOS -->
         <section data-view="reports" hidden>
           <h2 class="text-2xl/7 font-bold text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight dark:text-white">Relatórios</h2>
 
-          <div id="report-stats" class="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-5"></div>
+          <div class="mt-6 flex flex-wrap items-center gap-3">
+            <div class="grid grid-cols-1">
+              <select id="report-date-preset" class="col-start-1 row-start-1 w-44 appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-gray-800">
+                <option value="all">Todo período</option>
+                <option value="today">Hoje</option>
+                <option value="7d">Últimos 7 dias</option>
+                <option value="30d">Últimos 30 dias</option>
+                <option value="month">Este mês</option>
+                <option value="custom">Personalizado</option>
+              </select>
+              <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" class="pointer-events-none col-start-1 row-start-1 mr-2 size-4 self-center justify-self-end text-gray-500 dark:text-gray-400">
+                <path d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" fill-rule="evenodd" />
+              </svg>
+            </div>
+            <div id="report-date-custom" hidden class="flex items-center gap-2">
+              <input type="date" id="report-start-date" class="rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10" />
+              <span class="text-sm text-gray-500 dark:text-gray-400">até</span>
+              <input type="date" id="report-end-date" class="rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10" />
+            </div>
+            <div class="grid grid-cols-1">
+              <select id="report-department-filter" class="col-start-1 row-start-1 w-52 appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-gray-800">
+                <option value="">Todos os departamentos</option>
+              </select>
+              <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" class="pointer-events-none col-start-1 row-start-1 mr-2 size-4 self-center justify-self-end text-gray-500 dark:text-gray-400">
+                <path d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" fill-rule="evenodd" />
+              </svg>
+            </div>
+            <div class="grid grid-cols-1">
+              <select id="report-owner-filter" class="col-start-1 row-start-1 w-40 appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-gray-800">
+                <option value="">Ambas as donas</option>
+              </select>
+              <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" class="pointer-events-none col-start-1 row-start-1 mr-2 size-4 self-center justify-self-end text-gray-500 dark:text-gray-400">
+                <path d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" fill-rule="evenodd" />
+              </svg>
+            </div>
+            <div class="grid grid-cols-1">
+              <select id="report-supplier-filter" class="col-start-1 row-start-1 w-52 appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-gray-800">
+                <option value="">Todas as fornecedoras</option>
+              </select>
+              <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" class="pointer-events-none col-start-1 row-start-1 mr-2 size-4 self-center justify-self-end text-gray-500 dark:text-gray-400">
+                <path d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" fill-rule="evenodd" />
+              </svg>
+            </div>
+          </div>
+
+          <div id="report-stats" class="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"></div>
 
           <h3 class="mt-10 text-base font-semibold text-gray-900 dark:text-white">Vendas por categoria</h3>
+          <div id="report-category-chart" class="mt-4"></div>
           <div class="mt-4 flow-root">
             <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
               <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
@@ -334,6 +462,7 @@
           </div>
 
           <h3 class="mt-10 text-base font-semibold text-gray-900 dark:text-white">Vendas por fornecedora</h3>
+          <div id="report-supplier-chart" class="mt-4"></div>
           <div class="mt-4 flow-root">
             <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
               <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
@@ -341,7 +470,7 @@
                   <thead>
                     <tr>
                       <th scope="col" class="py-3 pr-3 pl-4 text-left text-xs font-medium tracking-wide text-gray-500 uppercase sm:pl-0 dark:text-gray-400">Fornecedora</th>
-                      <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Pertence a</th>
+                      <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Vinculada a</th>
                       <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Peças vendidas</th>
                       <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Receita</th>
                       <th scope="col" class="py-3 pr-4 pl-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase sm:pr-0 dark:text-gray-400">Comissão paga</th>
@@ -366,6 +495,7 @@
               </svg>
             </div>
           </div>
+          <div id="report-timeline-chart" class="mt-4"></div>
           <div class="mt-4 flow-root">
             <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
               <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
@@ -385,6 +515,14 @@
           </div>
         </section>
 
+        <!-- CONFIGURAÇÕES -->
+        <section data-view="settings" hidden>
+          <h2 class="text-2xl/7 font-bold text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight dark:text-white">Configurações</h2>
+          <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">Cada dona pode redefinir o próprio PIN aqui — e, se uma esquecer o dela, a outra pode redefini-lo por ela.</p>
+          <div id="settings-alert-slot" class="mt-4"></div>
+          <div id="settings-owners" class="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2"></div>
+        </section>
+
       </div>
     </main>
   </div>
@@ -400,7 +538,7 @@
                 <div class="flex items-center justify-between">
                   <h2 id="item-drawer-title" class="text-base font-semibold text-white">Adicionar peça</h2>
                   <div class="ml-3 flex h-7 items-center">
-                    <button type="button" command="close" commandfor="item-drawer" class="relative rounded-md text-pink-200 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+                    <button type="button" command="close" commandfor="item-drawer" onclick="resetItemDrawer()" class="relative rounded-md text-pink-200 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
                       <span class="sr-only">Fechar painel</span>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="size-6">
                         <path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round" />
@@ -413,15 +551,15 @@
                 <div class="space-y-6 px-4 pt-6 pb-5 sm:px-6">
                   <p class="text-sm text-gray-500 dark:text-gray-400">Campos com <span class="text-red-600 dark:text-red-400">*</span> são obrigatórios — o resto é opcional.</p>
                   <div>
-                    <label for="assignment" class="block text-sm/6 font-medium text-gray-900 dark:text-gray-100">Pertence a <span class="text-red-600 dark:text-red-400">*</span></label>
+                    <label for="assignment" class="block text-sm/6 font-medium text-gray-900 dark:text-gray-100">Vinculada a <span class="text-red-600 dark:text-red-400">*</span></label>
                     <div class="mt-2 grid grid-cols-1">
                       <select id="assignment" required class="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-gray-800"></select>
                     </div>
                   </div>
                   <div>
-                    <label for="department" class="block text-sm/6 font-medium text-gray-900 dark:text-gray-100">Departamento</label>
+                    <label for="department" class="block text-sm/6 font-medium text-gray-900 dark:text-gray-100">Departamento <span class="text-red-600 dark:text-red-400">*</span></label>
                     <div class="mt-2 grid grid-cols-1">
-                      <select id="department" class="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-gray-800"></select>
+                      <select id="department" required class="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-gray-800"></select>
                     </div>
                   </div>
                   <div class="grid grid-cols-2 gap-4">
@@ -495,7 +633,7 @@
               </div>
             </div>
             <div class="flex shrink-0 justify-end px-4 py-4">
-              <button type="button" command="close" commandfor="item-drawer" class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-xs inset-ring inset-ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-gray-100 dark:inset-ring-white/5 dark:hover:bg-white/20">Cancelar</button>
+              <button type="button" command="close" commandfor="item-drawer" onclick="resetItemDrawer()" class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-xs inset-ring inset-ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-gray-100 dark:inset-ring-white/5 dark:hover:bg-white/20">Cancelar</button>
               <button type="submit" class="ml-4 inline-flex justify-center rounded-md bg-pink-600 px-3 py-2 text-sm font-semibold text-white shadow-xs hover:bg-pink-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600 dark:bg-pink-500 dark:hover:bg-pink-400">Adicionar ao estoque</button>
             </div>
           </form>
@@ -504,18 +642,18 @@
     </dialog>
   </el-dialog>
 
-  <!-- DRAWER: Registrar venda -->
+  <!-- DRAWER: Carrinho -->
   <el-dialog>
-    <dialog id="sale-drawer" aria-labelledby="sale-drawer-title" class="fixed inset-0 size-auto max-h-none max-w-none overflow-hidden bg-transparent backdrop:bg-transparent">
+    <dialog id="cart-drawer" aria-labelledby="cart-drawer-title" class="fixed inset-0 size-auto max-h-none max-w-none overflow-hidden bg-transparent backdrop:bg-transparent">
       <div tabindex="0" class="absolute inset-0 pl-10 focus:outline-none sm:pl-16">
         <el-dialog-panel class="ml-auto block size-full max-w-md transform transition duration-500 ease-in-out data-closed:translate-x-full sm:duration-700">
-          <form id="sale-form" class="relative flex h-full flex-col divide-y divide-gray-200 bg-white shadow-xl dark:divide-white/10 dark:bg-gray-800">
+          <div class="relative flex h-full flex-col divide-y divide-gray-200 bg-white shadow-xl dark:divide-white/10 dark:bg-gray-800">
             <div class="h-0 flex-1 overflow-y-auto">
               <div class="bg-pink-700 px-4 py-6 sm:px-6 dark:bg-pink-800">
                 <div class="flex items-center justify-between">
-                  <h2 id="sale-drawer-title" class="text-base font-semibold text-white">Registrar venda</h2>
+                  <h2 id="cart-drawer-title" class="text-base font-semibold text-white">Finalizar venda</h2>
                   <div class="ml-3 flex h-7 items-center">
-                    <button type="button" command="close" commandfor="sale-drawer" class="relative rounded-md text-pink-200 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+                    <button type="button" command="close" commandfor="cart-drawer" onclick="resetCartDrawer()" class="relative rounded-md text-pink-200 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
                       <span class="sr-only">Fechar painel</span>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="size-6">
                         <path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round" />
@@ -526,27 +664,22 @@
               </div>
               <div class="flex flex-1 flex-col justify-between">
                 <div class="space-y-6 px-4 pt-6 pb-5 sm:px-6">
+                  <div id="cart-drawer-items" class="space-y-4"></div>
                   <div>
-                    <label for="sale-item" class="block text-sm/6 font-medium text-gray-900 dark:text-gray-100">Peça vendida</label>
+                    <label for="cart-payment-method" class="block text-sm/6 font-medium text-gray-900 dark:text-gray-100">Forma de pagamento</label>
                     <div class="mt-2 grid grid-cols-1">
-                      <select id="sale-item" required class="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-gray-800"></select>
+                      <select id="cart-payment-method" class="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-gray-800"></select>
                     </div>
                   </div>
-                  <div>
-                    <label for="sale-price" class="block text-sm/6 font-medium text-gray-900 dark:text-gray-100">Preço de venda (R$)</label>
-                    <div class="mt-2">
-                      <input type="text" inputmode="decimal" id="sale-price" placeholder="ex: 100,00" required class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10" />
-                    </div>
-                  </div>
-                  <p id="sale-message" class="text-sm"></p>
+                  <p id="cart-message" class="text-sm"></p>
                 </div>
               </div>
             </div>
             <div class="flex shrink-0 justify-end px-4 py-4">
-              <button type="button" command="close" commandfor="sale-drawer" class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-xs inset-ring inset-ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-gray-100 dark:inset-ring-white/5 dark:hover:bg-white/20">Cancelar</button>
-              <button type="submit" class="ml-4 inline-flex justify-center rounded-md bg-pink-600 px-3 py-2 text-sm font-semibold text-white shadow-xs hover:bg-pink-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600 dark:bg-pink-500 dark:hover:bg-pink-400">Registrar venda</button>
+              <button type="button" command="close" commandfor="cart-drawer" onclick="resetCartDrawer()" class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-xs inset-ring inset-ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-gray-100 dark:inset-ring-white/5 dark:hover:bg-white/20">Cancelar</button>
+              <button type="button" onclick="confirmCheckout()" class="ml-4 inline-flex justify-center rounded-md bg-pink-600 px-3 py-2 text-sm font-semibold text-white shadow-xs hover:bg-pink-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600 dark:bg-pink-500 dark:hover:bg-pink-400">Confirmar venda</button>
             </div>
-          </form>
+          </div>
         </el-dialog-panel>
       </div>
     </dialog>
@@ -563,7 +696,7 @@
                 <div class="flex items-center justify-between">
                   <h2 id="supplier-drawer-title" class="text-base font-semibold text-white">Adicionar fornecedora</h2>
                   <div class="ml-3 flex h-7 items-center">
-                    <button type="button" command="close" commandfor="supplier-drawer" class="relative rounded-md text-pink-200 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+                    <button type="button" command="close" commandfor="supplier-drawer" onclick="resetSupplierDrawer()" class="relative rounded-md text-pink-200 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
                       <span class="sr-only">Fechar painel</span>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="size-6">
                         <path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round" />
@@ -581,7 +714,7 @@
                     </div>
                   </div>
                   <div>
-                    <label for="supplier-owner" class="block text-sm/6 font-medium text-gray-900 dark:text-gray-100">Pertence a</label>
+                    <label for="supplier-owner" class="block text-sm/6 font-medium text-gray-900 dark:text-gray-100">Vinculada a</label>
                     <div class="mt-2 grid grid-cols-1">
                       <select id="supplier-owner" required class="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-gray-800"></select>
                     </div>
@@ -597,7 +730,7 @@
               </div>
             </div>
             <div class="flex shrink-0 justify-end px-4 py-4">
-              <button type="button" command="close" commandfor="supplier-drawer" class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-xs inset-ring inset-ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-gray-100 dark:inset-ring-white/5 dark:hover:bg-white/20">Cancelar</button>
+              <button type="button" command="close" commandfor="supplier-drawer" onclick="resetSupplierDrawer()" class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-xs inset-ring inset-ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-gray-100 dark:inset-ring-white/5 dark:hover:bg-white/20">Cancelar</button>
               <button type="submit" class="ml-4 inline-flex justify-center rounded-md bg-pink-600 px-3 py-2 text-sm font-semibold text-white shadow-xs hover:bg-pink-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600 dark:bg-pink-500 dark:hover:bg-pink-400">Adicionar fornecedora</button>
             </div>
           </form>
@@ -605,6 +738,9 @@
       </div>
     </dialog>
   </el-dialog>
+
+  <!-- LOCK SCREEN: preenchida dinamicamente por app.js -->
+  <div id="lock-screen" class="fixed inset-0 z-[100] flex items-center justify-center bg-white dark:bg-gray-900"></div>
 
   <script src="/app.js"></script>
 </body>

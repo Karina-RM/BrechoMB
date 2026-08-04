@@ -1,7 +1,38 @@
 @import "tailwindcss";
 
-/* Estoque table: secondary columns start hidden so the table fits lower-res
-   desktop screens without horizontal scroll; toggled via #columns-toggle. */
-#inventory-table.cols-collapsed .extra-col {
+/* Estoque list view: secondary columns start hidden so the table fits lower-res
+   desktop screens without horizontal scroll; toggled via #inventory-columns-toggle. */
+#inventory-list-table.cols-collapsed .extra-col {
   display: none;
+}
+
+/* Relatórios charts — validated single-hue (blue) bar color + chart chrome, per the
+   dataviz skill's palette (references/palette.md). Light/dark tracked independently of
+   the app's own pink theme since chart color answers a different question ("how big")
+   than UI chrome does. */
+.viz-root {
+  color-scheme: light;
+  --viz-text-secondary: #52514e;
+  --viz-text-muted: #898781;
+  --viz-gridline: #e1e0d9;
+  --viz-baseline: #c3c2b7;
+  --viz-series-1: #2a78d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .viz-root {
+    color-scheme: dark;
+    --viz-text-secondary: #c3c2b7;
+    --viz-text-muted: #898781;
+    --viz-gridline: #2c2c2a;
+    --viz-baseline: #383835;
+    --viz-series-1: #3987e5;
+  }
+}
+:root[data-theme="dark"] .viz-root {
+  color-scheme: dark;
+  --viz-text-secondary: #c3c2b7;
+  --viz-text-muted: #898781;
+  --viz-gridline: #2c2c2a;
+  --viz-baseline: #383835;
+  --viz-series-1: #3987e5;
 }

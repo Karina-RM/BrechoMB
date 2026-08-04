@@ -87,16 +87,18 @@ def get_supplier(supplier_id: int):
 
         payout_rows = conn.execute(
             """
-            SELECT items.sku, sales.sale_date, sales.sale_price, splits.supplier_amount
+            SELECT sales.id AS sale_id, items.sku, sales.sale_date, sales.sale_price,
+                   splits.supplier_amount, splits.paid_at
             FROM splits
             JOIN sales ON sales.id = splits.sale_id
             JOIN items ON items.id = sales.item_id
-            WHERE splits.supplier_id = ?
+            WHERE splits.supplier_id = ? AND sales.voided_at IS NULL
             ORDER BY sales.sale_date DESC
             """,
             (supplier_id,),
         ).fetchall()
-        total_owed = round(sum(r["supplier_amount"] for r in payout_rows), 2)
+        total_owed = round(sum(r["supplier_amount"] for r in payout_rows if r["paid_at"] is None), 2)
+        total_paid = round(sum(r["supplier_amount"] for r in payout_rows if r["paid_at"] is not None), 2)
 
         withdrawal_rows = conn.execute(
             """
@@ -127,8 +129,31 @@ def get_supplier(supplier_id: int):
             "commission_pct": supplier["commission_pct"],
             "items": [dict(r) for r in items],
             "total_owed": total_owed,
+            "total_paid": total_paid,
             "payout_sales": [dict(r) for r in payout_rows],
             "withdrawals": withdrawals,
         }
     finally:
         conn.close()
+
+
+@router.post("/{supplier_id}/payouts", response_model=SupplierDetailOut)
+def register_payout(supplier_id: int):
+    conn = get_connection()
+    try:
+        supplier = conn.execute("SELECT * FROM suppliers WHERE id = ?", (supplier_id,)).fetchone()
+        if supplier is None:
+            raise HTTPException(404, "fornecedora não encontrada")
+
+        conn.execute(
+            """
+            UPDATE splits SET paid_at = CURRENT_TIMESTAMP
+            WHERE supplier_id = ? AND paid_at IS NULL
+              AND sale_id IN (SELECT id FROM sales WHERE voided_at IS NULL)
+            """,
+            (supplier_id,),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return get_supplier(supplier_id)

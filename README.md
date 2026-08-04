@@ -65,7 +65,7 @@ Um painel abre do lado direito com os campos abaixo. Os campos marcados com **\*
 | Campo | O que preencher |
 |---|---|
 | **Pertence a** \* | Se a peça é garimpada por uma das donas, ou se veio de uma fornecedora cadastrada |
-| **Departamento** | A seção geral da peça — roupa, casa, eletrônico, etc. (veja a explicação abaixo) |
+| **Departamento** \* | A seção geral da peça — roupa, casa, eletrônico, etc. (veja a explicação abaixo) |
 | **Categoria** | O tipo exato da peça dentro do departamento escolhido |
 | **Tamanho** | Só aparece quando faz sentido para a categoria escolhida (veja abaixo) |
 | **Condição** | Novo com etiqueta, novo sem etiqueta, seminovo ou usado |
@@ -218,5 +218,23 @@ Isso gera `frontend/styles.css` e `frontend/vendor/elements.js` — os dois são
 ```bash
 pytest
 ```
+
+### Painel de administração
+
+Existe um painel separado do aplicativo principal, para correções pontuais direto no banco de dados. Não é uma tela de uso diário e não tem nenhum link dentro do sistema — só é alcançável por quem sabe o endereço e a senha.
+
+**Acesso:** com o aplicativo rodando, abra `http://127.0.0.1:8000/admin.html` numa aba de navegador comum. A janela do Brechó não tem barra de endereço, então não dá para chegar lá por dentro dela — é preciso abrir num navegador à parte, em paralelo.
+
+**Senha:** independente do PIN das donas, definida via terminal:
+
+```bash
+python -m backend.set_admin_password
+```
+
+Pede a senha duas vezes (não aparece na tela) e salva o hash no banco. Pode ser rodado de novo a qualquer momento para trocar a senha.
+
+**O que o painel faz:** ver, criar, editar e excluir diretamente qualquer linha de qualquer tabela do banco (donas, fornecedoras, peças, vendas, recibos, repasses, retiradas e histórico de edições) — como um mini admin do Django. A tabela com a senha do próprio painel nunca aparece nele, para não haver risco de se trancar para fora.
+
+**Cuidado:** o painel edita o banco direto, sem passar pelas regras de negócio que o resto do sistema aplica — por exemplo, o cálculo de divisão de uma venda ou a trava que impede vender a mesma peça duas vezes. Use só para corrigir um dado errado, não para operações do dia a dia. Excluir uma linha é definitivo.
 
 `roadmap.md` documenta as decisões de negócio e o histórico de planejamento do projeto.

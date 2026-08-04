@@ -1,8 +1,11 @@
+import re
 from typing import List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
-from backend.enums import ItemCategory, ItemCondition, ItemDepartment
+from backend.enums import ItemCategory, ItemCondition, ItemDepartment, PaymentMethod
+
+PIN_PATTERN = re.compile(r"^\d{4,6}$")
 
 
 class OwnerOut(BaseModel):
@@ -10,10 +13,23 @@ class OwnerOut(BaseModel):
     name: str
     is_cut_owner: bool
     active: bool
+    has_pin: bool
 
 
 class OwnerUpdate(BaseModel):
-    active: bool
+    active: Optional[bool] = None
+    pin: Optional[str] = None
+
+    @field_validator("pin")
+    @classmethod
+    def validate_pin(cls, value: Optional[str]) -> Optional[str]:
+        if value is not None and not PIN_PATTERN.match(value):
+            raise ValueError("o PIN deve ter de 4 a 6 dígitos numéricos")
+        return value
+
+
+class PinVerify(BaseModel):
+    pin: str
 
 
 class SupplierOut(BaseModel):
@@ -45,10 +61,12 @@ class SupplierItemOut(BaseModel):
 
 
 class SupplierPayoutSaleOut(BaseModel):
+    sale_id: int
     sku: str
     sale_date: str
     sale_price: float
     supplier_amount: float
+    paid_at: Optional[str]
 
 
 class SupplierWithdrawalOut(BaseModel):
@@ -65,6 +83,7 @@ class SupplierDetailOut(BaseModel):
     commission_pct: float
     items: List[SupplierItemOut]
     total_owed: float
+    total_paid: float
     payout_sales: List[SupplierPayoutSaleOut]
     withdrawals: List[SupplierWithdrawalOut]
 
@@ -100,11 +119,27 @@ class ItemUpdate(BaseModel):
     observations: Optional[str] = None
     price: Optional[float] = None
     commission_pct_override: Optional[float] = None
+    edited_by_owner_id: int
 
 
-class SaleCreate(BaseModel):
+class ItemEditOut(BaseModel):
+    field: str
+    old_value: Optional[str]
+    new_value: Optional[str]
+    edited_by_owner_name: Optional[str]
+    edited_at: str
+
+
+class CheckoutItem(BaseModel):
     item_id: int
     sale_price: float
+    discount_reason: Optional[str] = None
+
+
+class CheckoutCreate(BaseModel):
+    items: List[CheckoutItem]
+    payment_method: PaymentMethod
+    sold_by_owner_id: int
 
 
 class SplitOut(BaseModel):
@@ -118,7 +153,13 @@ class SaleOut(BaseModel):
     item_id: int
     sku: str
     sale_price: float
+    catalog_price: float
+    discount_reason: Optional[str]
+    receipt_id: int
+    payment_method: Optional[str]
+    sold_by_owner_name: Optional[str]
     sale_date: str
+    voided_at: Optional[str]
     split: SplitOut
 
 
@@ -127,6 +168,7 @@ class ItemDetailOut(ItemOut):
     # view for a plain in-stock item just omits these.
     sale: Optional[SaleOut] = None
     withdrawn_date: Optional[str] = None
+    edits: List[ItemEditOut] = []
 
 
 class ReportSummaryOut(BaseModel):
@@ -136,7 +178,9 @@ class ReportSummaryOut(BaseModel):
     owner_a_earnings: float
     owner_b_name: str
     owner_b_earnings: float
-    supplier_payouts: float
+    supplier_commission_total: float
+    supplier_commission_paid: float
+    supplier_commission_pending: float
 
 
 class CategoryReportRow(BaseModel):

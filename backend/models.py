@@ -5,7 +5,8 @@ CREATE TABLE IF NOT EXISTS owners (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL,
     is_cut_owner INTEGER NOT NULL DEFAULT 0,
-    active INTEGER NOT NULL DEFAULT 1
+    active INTEGER NOT NULL DEFAULT 1,
+    pin TEXT
 );
 
 CREATE TABLE IF NOT EXISTS suppliers (
@@ -34,15 +35,27 @@ CREATE TABLE IF NOT EXISTS items (
     price REAL NOT NULL,
     status TEXT NOT NULL DEFAULT 'in_stock',
     intake_date TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TEXT,
     CHECK ((owner_id IS NULL) != (supplier_id IS NULL)),
-    CHECK (status IN ('in_stock', 'sold', 'withdrawn'))
+    CHECK (status IN ('in_stock', 'sold', 'withdrawn', 'deleted'))
+);
+
+CREATE TABLE IF NOT EXISTS receipts (
+    id INTEGER PRIMARY KEY,
+    payment_method TEXT,
+    sold_by_owner_id INTEGER REFERENCES owners(id),
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS sales (
     id INTEGER PRIMARY KEY,
-    item_id INTEGER NOT NULL UNIQUE REFERENCES items(id),
+    item_id INTEGER NOT NULL REFERENCES items(id),
     sale_price REAL NOT NULL,
-    sale_date TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    catalog_price REAL NOT NULL,
+    discount_reason TEXT,
+    receipt_id INTEGER NOT NULL REFERENCES receipts(id),
+    sale_date TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    voided_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS splits (
@@ -51,13 +64,33 @@ CREATE TABLE IF NOT EXISTS splits (
     owner_a_amount REAL NOT NULL,
     owner_b_amount REAL NOT NULL,
     supplier_id INTEGER REFERENCES suppliers(id),
-    supplier_amount REAL NOT NULL DEFAULT 0
+    supplier_amount REAL NOT NULL DEFAULT 0,
+    paid_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS withdrawals (
     id INTEGER PRIMARY KEY,
     item_id INTEGER NOT NULL REFERENCES items(id),
     withdrawn_date TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS item_edits (
+    id INTEGER PRIMARY KEY,
+    item_id INTEGER NOT NULL REFERENCES items(id),
+    field TEXT NOT NULL,
+    old_value TEXT,
+    new_value TEXT,
+    edited_by_owner_id INTEGER REFERENCES owners(id),
+    edited_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Single-row table holding the admin panel's password hash. Never exposed through the
+-- admin panel's own generic CRUD (backend/routers/admin.py hardcodes it out of the
+-- table allow-list) — set only via `python -m backend.set_admin_password`.
+CREATE TABLE IF NOT EXISTS admin_auth (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    password_hash TEXT NOT NULL,
+    salt TEXT NOT NULL
 );
 """
 
@@ -82,6 +115,161 @@ def migrate_schema(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE items ADD COLUMN material TEXT")
     if "observations" not in existing:
         conn.execute("ALTER TABLE items ADD COLUMN observations TEXT")
+
+    # A "delete" item action used to be a real DELETE, which crashed once an item had
+    # any item_edits rows (no ON DELETE CASCADE on that FK). Turning delete into a soft
+    # delete (a 4th status value) needs the status CHECK constraint widened, which
+    # SQLite can't ALTER — same rename/recreate/copy/drop rebuild already used for
+    # `sales` below. The copy below names every column explicitly on both sides
+    # (never `SELECT *`) — a live check of this database showed its actual physical
+    # column order no longer matches the order columns appear in SCHEMA above, since
+    # department/brand/color/material/observations were each added by their own
+    # ALTER TABLE ADD COLUMN at different points in this file's history. `SELECT *`
+    # copies by position, so on a table like that it silently shifts every value into
+    # the wrong column instead of failing loudly — explicit names side-step the
+    # mismatch entirely regardless of physical order on either side.
+    existing_items_now = {row["name"] for row in conn.execute("PRAGMA table_info(items)")}
+    if "deleted_at" not in existing_items_now:
+        conn.execute("PRAGMA foreign_keys = OFF")
+        conn.execute("ALTER TABLE items RENAME TO items_old")
+        conn.execute(
+            """
+            CREATE TABLE items (
+                id INTEGER PRIMARY KEY,
+                sku TEXT NOT NULL UNIQUE,
+                owner_id INTEGER REFERENCES owners(id),
+                supplier_id INTEGER REFERENCES suppliers(id),
+                commission_pct_override REAL,
+                photo_paths TEXT NOT NULL DEFAULT '[]',
+                size TEXT,
+                condition TEXT,
+                department TEXT,
+                category TEXT,
+                brand TEXT,
+                color TEXT,
+                material TEXT,
+                observations TEXT,
+                price REAL NOT NULL,
+                status TEXT NOT NULL DEFAULT 'in_stock',
+                intake_date TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                deleted_at TEXT,
+                CHECK ((owner_id IS NULL) != (supplier_id IS NULL)),
+                CHECK (status IN ('in_stock', 'sold', 'withdrawn', 'deleted'))
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO items (
+                id, sku, owner_id, supplier_id, commission_pct_override, photo_paths,
+                size, condition, department, category, brand, color, material,
+                observations, price, status, intake_date, deleted_at
+            )
+            SELECT
+                id, sku, owner_id, supplier_id, commission_pct_override, photo_paths,
+                size, condition, department, category, brand, color, material,
+                observations, price, status, intake_date, NULL
+            FROM items_old
+            """
+        )
+        conn.execute("DROP TABLE items_old")
+        conn.execute("PRAGMA foreign_keys = ON")
+
+    existing_owners = {row["name"] for row in conn.execute("PRAGMA table_info(owners)")}
+    if "pin" not in existing_owners:
+        conn.execute("ALTER TABLE owners ADD COLUMN pin TEXT")
+
+    existing_splits = {row["name"] for row in conn.execute("PRAGMA table_info(splits)")}
+    if "paid_at" not in existing_splits:
+        conn.execute("ALTER TABLE splits ADD COLUMN paid_at TEXT")
+
+    # sales.item_id used to be a plain UNIQUE column — refunds need it relaxed to "at
+    # most one active sale per item" (see the partial index below), which SQLite can't
+    # express via ALTER TABLE, so existing databases get a one-time table rebuild here.
+    existing_sales = {row["name"] for row in conn.execute("PRAGMA table_info(sales)")}
+    if "catalog_price" not in existing_sales:
+        conn.execute("PRAGMA foreign_keys = OFF")
+        conn.execute("ALTER TABLE sales RENAME TO sales_old")
+        conn.execute(
+            """
+            CREATE TABLE sales (
+                id INTEGER PRIMARY KEY,
+                item_id INTEGER NOT NULL REFERENCES items(id),
+                sale_price REAL NOT NULL,
+                catalog_price REAL NOT NULL,
+                discount_reason TEXT,
+                payment_method TEXT,
+                sold_by_owner_id INTEGER REFERENCES owners(id),
+                sale_date TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                voided_at TEXT
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO sales (id, item_id, sale_price, catalog_price, sale_date)
+            SELECT id, item_id, sale_price, sale_price, sale_date FROM sales_old
+            """
+        )
+        conn.execute("DROP TABLE sales_old")
+        conn.execute("PRAGMA foreign_keys = ON")
+
+    # A cart checkout (multiple items, one payment/seller) needs payment_method and
+    # sold_by_owner_id to live on a shared receipt rather than repeated per sale row —
+    # re-check the table shape fresh here since the rebuild above may have just run.
+    existing_sales_now = {row["name"] for row in conn.execute("PRAGMA table_info(sales)")}
+    if "receipt_id" not in existing_sales_now:
+        old_sales = conn.execute("SELECT id, payment_method, sold_by_owner_id, sale_date FROM sales").fetchall()
+        receipt_id_by_sale_id = {}
+        for row in old_sales:
+            cur = conn.execute(
+                "INSERT INTO receipts (payment_method, sold_by_owner_id, created_at) VALUES (?, ?, ?)",
+                (row["payment_method"], row["sold_by_owner_id"], row["sale_date"]),
+            )
+            receipt_id_by_sale_id[row["id"]] = cur.lastrowid
+
+        conn.execute("PRAGMA foreign_keys = OFF")
+        conn.execute("ALTER TABLE sales RENAME TO sales_old")
+        conn.execute(
+            """
+            CREATE TABLE sales (
+                id INTEGER PRIMARY KEY,
+                item_id INTEGER NOT NULL REFERENCES items(id),
+                sale_price REAL NOT NULL,
+                catalog_price REAL NOT NULL,
+                discount_reason TEXT,
+                receipt_id INTEGER NOT NULL REFERENCES receipts(id),
+                sale_date TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                voided_at TEXT
+            )
+            """
+        )
+        for row in conn.execute("SELECT * FROM sales_old").fetchall():
+            conn.execute(
+                """
+                INSERT INTO sales (id, item_id, sale_price, catalog_price, discount_reason, receipt_id, sale_date, voided_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    row["id"],
+                    row["item_id"],
+                    row["sale_price"],
+                    row["catalog_price"],
+                    row["discount_reason"],
+                    receipt_id_by_sale_id[row["id"]],
+                    row["sale_date"],
+                    row["voided_at"],
+                ),
+            )
+        conn.execute("DROP TABLE sales_old")
+        conn.execute("PRAGMA foreign_keys = ON")
+
+    # Created here rather than in SCHEMA: on an existing (not-yet-rebuilt) database,
+    # create_schema() runs before this function and would fail referencing voided_at on
+    # the still-old table shape. By this point sales always has the new columns, whether
+    # freshly created above or rebuilt just above.
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_sales_active_item ON sales(item_id) WHERE voided_at IS NULL")
+
     conn.commit()
 
 
