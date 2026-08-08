@@ -72,7 +72,6 @@ def _save_photo(sku: str, index: int, data_url: str) -> Optional[str]:
 def create_item(
     owner_id: Optional[int] = Form(None),
     supplier_id: Optional[int] = Form(None),
-    commission_pct_override: Optional[float] = Form(None),
     size: Optional[str] = Form(None),
     condition: Optional[ItemCondition] = Form(None),
     department: ItemDepartment = Form(...),
@@ -87,8 +86,6 @@ def create_item(
         raise HTTPException(400, "informe a proprietária ou a fornecedora da peça, mas não as duas")
     if price <= 0:
         raise HTTPException(400, "o preço deve ser maior que zero")
-    if commission_pct_override is not None and (commission_pct_override < 0 or commission_pct_override > 100):
-        raise HTTPException(400, "a comissão deve estar entre 0 e 100")
     if category is not None and department is not None and category not in DEPARTMENT_CATEGORIES[department]:
         raise HTTPException(400, f"categoria '{category.value}' não pertence ao departamento '{department.value}'")
     if size is not None:
@@ -106,12 +103,12 @@ def create_item(
         cur = conn.execute(
             """
             INSERT INTO items
-                (sku, owner_id, supplier_id, commission_pct_override, photo_paths,
+                (sku, owner_id, supplier_id, photo_paths,
                  size, condition, department, category, brand, color, material, observations, price, status)
-            VALUES (?, ?, ?, ?, '[]', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_stock')
+            VALUES (?, ?, ?, '[]', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_stock')
             """,
             (
-                sku, owner_id, supplier_id, commission_pct_override,
+                sku, owner_id, supplier_id,
                 size, condition, department, category, brand, color, material, observations, price,
             ),
         )
@@ -244,10 +241,6 @@ def update_item(item_id: int, payload: ItemUpdate):
 
         if "price" in updates and (updates["price"] is None or updates["price"] <= 0):
             raise HTTPException(400, "o preço deve ser maior que zero")
-        if "commission_pct_override" in updates and updates["commission_pct_override"] is not None:
-            pct = updates["commission_pct_override"]
-            if pct < 0 or pct > 100:
-                raise HTTPException(400, "a comissão deve estar entre 0 e 100")
 
         # Mirror create_item's department/category/size cross-validation, checked
         # against the *effective* resulting state (whichever of these three fields

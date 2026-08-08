@@ -93,7 +93,6 @@ class ItemOut(BaseModel):
     sku: str
     owner_id: Optional[int]
     supplier_id: Optional[int]
-    commission_pct_override: Optional[float]
     photo_paths: List[str]
     size: Optional[str]
     condition: Optional[str]
@@ -118,7 +117,6 @@ class ItemUpdate(BaseModel):
     material: Optional[str] = None
     observations: Optional[str] = None
     price: Optional[float] = None
-    commission_pct_override: Optional[float] = None
     edited_by_owner_id: int
 
 

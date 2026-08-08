@@ -33,11 +33,9 @@ def get_single_active_owner(conn: sqlite3.Connection) -> Optional[str]:
 
 
 def get_commission_pct(conn: sqlite3.Connection, item: sqlite3.Row) -> float:
-    """The commission % that applies to an item right now: its own override, else the
-    supplier's current default, else 0 for a garimpada piece — always read live, since
-    commission % is editable at any time."""
-    if item["commission_pct_override"] is not None:
-        return item["commission_pct_override"]
+    """The commission % that applies to an item right now: the supplier's current
+    default (its single source of truth), else 0 for a garimpada piece — always read
+    live, since commission % is editable at any time."""
     if item["supplier_id"] is None:
         return 0.0
     row = conn.execute(

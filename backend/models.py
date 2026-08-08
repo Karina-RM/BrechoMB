@@ -22,7 +22,6 @@ CREATE TABLE IF NOT EXISTS items (
     sku TEXT NOT NULL UNIQUE,
     owner_id INTEGER REFERENCES owners(id),
     supplier_id INTEGER REFERENCES suppliers(id),
-    commission_pct_override REAL,
     photo_paths TEXT NOT NULL DEFAULT '[]',
     size TEXT,
     condition TEXT,
@@ -139,7 +138,6 @@ def migrate_schema(conn: sqlite3.Connection) -> None:
                 sku TEXT NOT NULL UNIQUE,
                 owner_id INTEGER REFERENCES owners(id),
                 supplier_id INTEGER REFERENCES suppliers(id),
-                commission_pct_override REAL,
                 photo_paths TEXT NOT NULL DEFAULT '[]',
                 size TEXT,
                 condition TEXT,
@@ -161,14 +159,63 @@ def migrate_schema(conn: sqlite3.Connection) -> None:
         conn.execute(
             """
             INSERT INTO items (
-                id, sku, owner_id, supplier_id, commission_pct_override, photo_paths,
+                id, sku, owner_id, supplier_id, photo_paths,
                 size, condition, department, category, brand, color, material,
                 observations, price, status, intake_date, deleted_at
             )
             SELECT
-                id, sku, owner_id, supplier_id, commission_pct_override, photo_paths,
+                id, sku, owner_id, supplier_id, photo_paths,
                 size, condition, department, category, brand, color, material,
                 observations, price, status, intake_date, NULL
+            FROM items_old
+            """
+        )
+        conn.execute("DROP TABLE items_old")
+        conn.execute("PRAGMA foreign_keys = ON")
+
+    # Per-item commission overrides are gone — the supplier's own commission_pct is now
+    # the single source of truth (see backend/domain.py get_commission_pct). Dropping a
+    # column needs the same rebuild SQLite forces everywhere else in this function.
+    existing_items_now = {row["name"] for row in conn.execute("PRAGMA table_info(items)")}
+    if "commission_pct_override" in existing_items_now:
+        conn.execute("PRAGMA foreign_keys = OFF")
+        conn.execute("ALTER TABLE items RENAME TO items_old")
+        conn.execute(
+            """
+            CREATE TABLE items (
+                id INTEGER PRIMARY KEY,
+                sku TEXT NOT NULL UNIQUE,
+                owner_id INTEGER REFERENCES owners(id),
+                supplier_id INTEGER REFERENCES suppliers(id),
+                photo_paths TEXT NOT NULL DEFAULT '[]',
+                size TEXT,
+                condition TEXT,
+                department TEXT,
+                category TEXT,
+                brand TEXT,
+                color TEXT,
+                material TEXT,
+                observations TEXT,
+                price REAL NOT NULL,
+                status TEXT NOT NULL DEFAULT 'in_stock',
+                intake_date TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                deleted_at TEXT,
+                CHECK ((owner_id IS NULL) != (supplier_id IS NULL)),
+                CHECK (status IN ('in_stock', 'sold', 'withdrawn', 'deleted'))
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO items (
+                id, sku, owner_id, supplier_id, photo_paths,
+                size, condition, department, category, brand, color, material,
+                observations, price, status, intake_date, deleted_at
+            )
+            SELECT
+                id, sku, owner_id, supplier_id, photo_paths,
+                size, condition, department, category, brand, color, material,
+                observations, price, status, intake_date, deleted_at
             FROM items_old
             """
         )

@@ -1600,12 +1600,6 @@ function renderItemEditForm(item) {
           <textarea id="edit-observations" rows="3" class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10">${item.observations ?? ""}</textarea>
         </div>
       </div>
-      <div>
-        <label for="edit-commission_override" class="block text-sm/6 font-medium text-gray-900 dark:text-gray-100">Comissão específica (%)</label>
-        <div class="mt-2">
-          <input type="text" inputmode="decimal" id="edit-commission_override" value="${item.commission_pct_override != null ? String(item.commission_pct_override).replace(".", ",") : ""}" placeholder="usa o padrão da fornecedora" class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 disabled:bg-gray-50 disabled:text-gray-400 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:placeholder:text-gray-500 dark:disabled:bg-white/[0.02] dark:disabled:text-gray-500" />
-        </div>
-      </div>
       <p id="item-edit-message" class="text-sm"></p>
       <div class="flex justify-end gap-3">
         <button type="button" onclick="showItemDetail(currentItemDetailId)" class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-xs inset-ring inset-ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-gray-100 dark:inset-ring-white/5 dark:hover:bg-white/20">Cancelar</button>
@@ -1653,7 +1647,6 @@ function enterItemEditMode() {
 }
 
 async function handleItemEditSave(itemId) {
-  const commissionInput = parseDecimal(document.getElementById("edit-commission_override").value);
   const payload = {
     department: document.getElementById("edit-department").value || null,
     category: document.getElementById("edit-category").value || null,
@@ -1664,7 +1657,6 @@ async function handleItemEditSave(itemId) {
     material: document.getElementById("edit-material").value || null,
     observations: document.getElementById("edit-observations").value || null,
     price: Number(parseDecimal(document.getElementById("edit-price").value)),
-    commission_pct_override: commissionInput === "" ? null : Number(commissionInput),
     edited_by_owner_id: session.ownerId,
   };
 
@@ -1966,7 +1958,6 @@ async function handleSubmit(event) {
   const color = document.getElementById("color").value;
   const material = document.getElementById("material").value;
   const observations = document.getElementById("observations").value;
-  const override = parseDecimal(document.getElementById("commission_override").value);
   if (department) formData.append("department", department);
   if (category) formData.append("category", category);
   if (brand) formData.append("brand", brand);
@@ -1975,7 +1966,6 @@ async function handleSubmit(event) {
   if (color) formData.append("color", color);
   if (material) formData.append("material", material);
   if (observations) formData.append("observations", observations);
-  if (override) formData.append("commission_pct_override", override);
 
   setFormMessage("form-message", "Salvando…", "");
   try {
