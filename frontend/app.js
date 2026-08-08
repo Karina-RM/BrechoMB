@@ -275,6 +275,42 @@ function describeApiError(err, fallback) {
   return fallback;
 }
 
+// WKWebView (the engine behind the desktop pywebview shell on macOS) has a long-standing
+// bug where a FormData body containing a File/Blob part can silently end up empty on the
+// wire — the request reaches the server with no fields at all, so only the fields with no
+// server-side default (e.g. department, price) surface as "Field required". This isn't
+// fetch()-specific (XHR hits it too), so the actual fix is avoiding File/Blob parts
+// entirely: photos travel as base64 strings (see readFileAsDataURL) instead. XHR is kept
+// here mainly because it's already proven to work for this request.
+function postFormData(url, formData) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url);
+    xhr.onload = () => {
+      let body = null;
+      try {
+        body = JSON.parse(xhr.responseText);
+      } catch {
+        // non-JSON response body — callers that need it will just see null
+      }
+      resolve({ ok: xhr.status >= 200 && xhr.status < 300, json: async () => body });
+    };
+    xhr.onerror = () => reject(new Error("falha de rede"));
+    xhr.send(formData);
+  });
+}
+
+// Converts a picked photo to a base64 data URL so it can travel as a plain FormData
+// string field instead of a File/Blob part (see postFormData above for why that matters).
+function readFileAsDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
 function statusBadge(status) {
   const dot = STATUS_DOT_COLOR[status] || "fill-gray-400";
   return `
@@ -1937,24 +1973,43 @@ async function handleSubmit(event) {
   if (observations) formData.append("observations", observations);
   if (override) formData.append("commission_pct_override", override);
 
-  for (const file of document.getElementById("photos").files) {
-    formData.append("photos", file);
-  }
-
   setFormMessage("form-message", "Salvando…", "");
   try {
-    const res = await fetch("/api/items", { method: "POST", body: formData });
+    const res = await postFormData("/api/items", formData);
     if (!res.ok) {
       const err = await res.json();
       throw new Error(describeApiError(err, "não foi possível salvar a peça"));
     }
     const item = await res.json();
-    setFormMessage("form-message", `Peça ${item.sku} adicionada`, "success");
+
+    // One request per photo, sent only after the piece itself is safely saved — a
+    // large Photos-library original (routinely several MB once base64-encoded)
+    // shares no request with department/price, so it can't take them down too
+    // (see postFormData above).
+    let photoFailures = 0;
+    for (const file of document.getElementById("photos").files) {
+      try {
+        const photoFormData = new FormData();
+        photoFormData.append("photo_base64", await readFileAsDataURL(file));
+        const photoRes = await postFormData(`/api/items/${item.id}/photos`, photoFormData);
+        if (!photoRes.ok) throw new Error();
+      } catch {
+        photoFailures++;
+      }
+    }
+
     event.target.reset();
     updateCategoryOptions("");
     await loadInventory();
     document.getElementById("item-drawer").close();
     setFormMessage("form-message", "", "");
+    showAlert(
+      "inventory-alert-slot",
+      photoFailures > 0
+        ? `Peça ${item.sku} adicionada — ${photoFailures} foto(s) não puderam ser enviadas.`
+        : `Peça ${item.sku} adicionada.`,
+      photoFailures > 0 ? "error" : "success"
+    );
   } catch (err) {
     setFormMessage("form-message", err.message, "error");
   }

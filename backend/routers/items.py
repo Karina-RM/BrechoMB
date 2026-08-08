@@ -1,9 +1,10 @@
+import base64
 import json
+import re
 import sqlite3
-from pathlib import Path
 from typing import List, Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Form, HTTPException
 
 from backend.db import PHOTOS_DIR, get_connection
 from backend.domain import resolve_side
@@ -34,20 +35,37 @@ def _generate_sku(conn: sqlite3.Connection, side: str) -> str:
     return f"{side}-{count + 1:04d}"
 
 
-def _save_photos(sku: str, photos: List[UploadFile]) -> List[str]:
-    if not photos:
-        return []
+# Photos travel as base64 data URLs instead of multipart file parts — the desktop
+# app's WKWebView shell has a long-standing bug where fetch()/XHR silently drop the
+# HTTP body when a FormData payload contains a File/Blob part, so raw file uploads
+# never reach this endpoint. Plain string fields aren't affected.
+# MIME prefix is optional and loosely matched — Photos-library exports (HEIC/HEIF) and
+# some pywebview/WKWebView file pickers don't always report a clean "image/xxx" type, so
+# this only needs enough of the prefix to strip it before the base64 payload.
+_DATA_URL_RE = re.compile(r"^data:[^;]*;base64,(?P<data>.+)$", re.DOTALL)
+_SUBTYPE_RE = re.compile(r"^data:[\w.+-]+/(?P<subtype>[\w.+-]+);base64,", re.IGNORECASE)
+_IMAGE_SUFFIXES = {
+    "jpeg": ".jpg",
+    "jpg": ".jpg",
+    "png": ".png",
+    "webp": ".webp",
+    "gif": ".gif",
+    "heic": ".heic",
+    "heif": ".heif",
+}
+
+
+def _save_photo(sku: str, index: int, data_url: str) -> Optional[str]:
+    match = _DATA_URL_RE.match(data_url)
+    if not match:
+        return None
     photo_dir = PHOTOS_DIR / sku
     photo_dir.mkdir(parents=True, exist_ok=True)
-    saved = []
-    for i, photo in enumerate(photos, start=1):
-        if not photo.filename:
-            continue
-        suffix = Path(photo.filename).suffix or ".jpg"
-        dest = photo_dir / f"{i}{suffix}"
-        dest.write_bytes(photo.file.read())
-        saved.append(f"/photos/{sku}/{dest.name}")
-    return saved
+    subtype_match = _SUBTYPE_RE.match(data_url)
+    suffix = _IMAGE_SUFFIXES.get(subtype_match.group("subtype").lower(), ".jpg") if subtype_match else ".jpg"
+    dest = photo_dir / f"{index}{suffix}"
+    dest.write_bytes(base64.b64decode(match.group("data")))
+    return f"/photos/{sku}/{dest.name}"
 
 
 @router.post("", response_model=ItemOut)
@@ -64,7 +82,6 @@ def create_item(
     material: Optional[str] = Form(None),
     observations: Optional[str] = Form(None),
     price: float = Form(...),
-    photos: List[UploadFile] = File(default=[]),
 ):
     if (owner_id is None) == (supplier_id is None):
         raise HTTPException(400, "informe a proprietária ou a fornecedora da peça, mas não as duas")
@@ -85,22 +102,48 @@ def create_item(
     try:
         side = resolve_side(conn, owner_id, supplier_id)
         sku = _generate_sku(conn, side)
-        photo_paths = _save_photos(sku, photos)
 
         cur = conn.execute(
             """
             INSERT INTO items
                 (sku, owner_id, supplier_id, commission_pct_override, photo_paths,
                  size, condition, department, category, brand, color, material, observations, price, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_stock')
+            VALUES (?, ?, ?, ?, '[]', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_stock')
             """,
             (
-                sku, owner_id, supplier_id, commission_pct_override, json.dumps(photo_paths),
+                sku, owner_id, supplier_id, commission_pct_override,
                 size, condition, department, category, brand, color, material, observations, price,
             ),
         )
         conn.commit()
         row = conn.execute("SELECT * FROM items WHERE id = ?", (cur.lastrowid,)).fetchone()
+        return _row_to_item(row)
+    finally:
+        conn.close()
+
+
+@router.post("/{item_id}/photos", response_model=ItemOut)
+def add_photo(item_id: int, photo_base64: str = Form(...)):
+    # Sent as its own request, one photo at a time, deliberately separate from
+    # create_item — a large Photos-library original (routinely several MB once
+    # base64-encoded) sharing a request with department/price risks the same
+    # WKWebView body-drop bug described above; isolating it here means a photo
+    # failure never costs the item's own required fields.
+    conn = get_connection()
+    try:
+        row = conn.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
+        if row is None or row["status"] == "deleted":
+            raise HTTPException(404, "peça não encontrada")
+
+        existing_paths = json.loads(row["photo_paths"])
+        path = _save_photo(row["sku"], len(existing_paths) + 1, photo_base64)
+        if path is None:
+            raise HTTPException(400, "arquivo de foto inválido")
+        existing_paths.append(path)
+
+        conn.execute("UPDATE items SET photo_paths = ? WHERE id = ?", (json.dumps(existing_paths), item_id))
+        conn.commit()
+        row = conn.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
         return _row_to_item(row)
     finally:
         conn.close()
