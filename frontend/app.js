@@ -744,7 +744,11 @@ async function loadAssignments() {
 
   ownerById = Object.fromEntries(owners.map((o) => [o.id, o]));
   const select = document.getElementById("assignment");
-  select.innerHTML = "";
+  // No option defaults to selected — owners split commission very differently, so an
+  // absent-minded submit must not silently misattribute a piece to whichever owner
+  // happened to be listed first. required (on the <select> itself) blocks submission
+  // while this placeholder is still selected, same as department's own placeholder.
+  select.innerHTML = '<option value="">Selecione a proprietária ou fornecedora</option>';
   assignmentLookup = {};
 
   for (const owner of owners) {
