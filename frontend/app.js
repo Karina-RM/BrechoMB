@@ -728,10 +728,14 @@ function resetInactivityTimer() {
 let currentDonaId = null;
 let settingsOwnersCache = [];
 
-async function loadSettings() {
+// forcedOwnerId lets a deep link (e.g. the "Ver detalhamento" shortcuts on Relatórios,
+// #settings/{id}) land straight on that dona's tab instead of whichever one was last open.
+async function loadSettings(forcedOwnerId) {
   const owners = await fetch("/api/owners").then((r) => r.json());
   settingsOwnersCache = owners;
-  if (!owners.some((o) => o.id === currentDonaId)) {
+  if (forcedOwnerId && owners.some((o) => o.id === forcedOwnerId)) {
+    currentDonaId = forcedOwnerId;
+  } else if (!owners.some((o) => o.id === currentDonaId)) {
     currentDonaId = owners.some((o) => o.id === session.ownerId) ? session.ownerId : (owners[0]?.id ?? null);
   }
   renderDonaSelector();
@@ -1019,7 +1023,7 @@ async function showView() {
   else if (resolvedView === "suppliers") await loadSuppliers();
   else if (resolvedView === "supplier-detail") await showSupplierDetail(Number(id));
   else if (resolvedView === "reports") await loadReports();
-  else if (resolvedView === "settings") await loadSettings();
+  else if (resolvedView === "settings") await loadSettings(id ? Number(id) : null);
 }
 
 // --- Data loading -----------------------------------------------------------
@@ -2424,16 +2428,39 @@ function renderVerticalBarChart(rows, labelKey, valueKey, formatValue) {
   `;
 }
 
-// Shop-wide only — deliberately excludes owner earnings and supplier commission,
-// which are identity-linked and belong one level deeper in Proprietárias
-// (loadDonaReportSummary), not on the landing screen anyone can glance at.
+// Shop-wide only — deliberately excludes per-dona earnings and per-fornecedora
+// commission, which are identity-linked and belong one level deeper in Proprietárias
+// (loadDonaReportSummary). The payout totals below are safe because they're combined
+// across both donas / all fornecedoras — no single person's number is exposed here.
 async function loadReportSummary(params) {
   const summary = await fetch(`/api/reports/summary?${params}`).then((r) => r.json());
   const stats = [
     { label: "Total de vendas", value: String(summary.total_sales) },
     { label: "Receita total", value: currency.format(summary.total_revenue) },
   ];
-  document.getElementById("report-stats").innerHTML = stats
+  document.getElementById("report-stats").innerHTML = renderStatCards(stats);
+
+  const payoutStats = [
+    { label: "Repasse às donas (total)", value: currency.format(summary.owner_payout_total) },
+    { label: "Já repassado às donas", value: currency.format(summary.owner_payout_paid) },
+    { label: "Ainda a repassar às donas", value: currency.format(summary.owner_payout_pending) },
+    { label: "Comissão de fornecedoras (total)", value: currency.format(summary.supplier_commission_total) },
+    { label: "Já pago a fornecedoras", value: currency.format(summary.supplier_commission_paid) },
+    { label: "Ainda a pagar a fornecedoras", value: currency.format(summary.supplier_commission_pending) },
+  ];
+  document.getElementById("report-payout-stats").innerHTML = renderStatCards(payoutStats);
+
+  document.getElementById("report-owner-shortcuts").innerHTML = Object.values(ownerById)
+    .map(
+      (owner) => `
+      <a href="#settings/${owner.id}" class="rounded-md bg-white px-3 py-1.5 text-sm font-semibold text-gray-900 shadow-xs inset-ring inset-ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-gray-100 dark:inset-ring-white/5 dark:hover:bg-white/20">${owner.name}</a>
+    `
+    )
+    .join("");
+}
+
+function renderStatCards(stats) {
+  return stats
     .map(
       (s) => `
       <div class="overflow-hidden rounded-lg bg-white px-4 py-5 shadow-sm sm:p-6 dark:bg-gray-800/75 dark:inset-ring dark:inset-ring-white/10">

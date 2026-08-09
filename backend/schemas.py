@@ -202,6 +202,9 @@ class ReportSummaryOut(BaseModel):
     owner_a_earnings: float
     owner_b_name: str
     owner_b_earnings: float
+    owner_payout_total: float
+    owner_payout_paid: float
+    owner_payout_pending: float
     supplier_commission_total: float
     supplier_commission_paid: float
     supplier_commission_pending: float

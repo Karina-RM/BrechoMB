@@ -63,6 +63,10 @@ def summary(
                    COALESCE(SUM(sales.sale_price), 0) AS total_revenue,
                    COALESCE(SUM(splits.owner_a_amount), 0) AS owner_a_earnings,
                    COALESCE(SUM(splits.owner_b_amount), 0) AS owner_b_earnings,
+                   COALESCE(SUM(CASE WHEN splits.owner_a_paid_at IS NOT NULL THEN splits.owner_a_amount ELSE 0 END), 0)
+                       AS owner_a_paid,
+                   COALESCE(SUM(CASE WHEN splits.owner_b_paid_at IS NOT NULL THEN splits.owner_b_amount ELSE 0 END), 0)
+                       AS owner_b_paid,
                    COALESCE(SUM(splits.supplier_amount), 0) AS supplier_commission_total,
                    COALESCE(SUM(CASE WHEN splits.paid_at IS NOT NULL THEN splits.supplier_amount ELSE 0 END), 0)
                        AS supplier_commission_paid
@@ -74,6 +78,12 @@ def summary(
             params,
         ).fetchone()
 
+        # Combined across both donas — deliberately not split by identity here, so this
+        # figure stays safe for the shop-wide Relatórios landing page (see
+        # frontend loadReportSummary). The per-owner breakdown lives in Proprietárias.
+        owner_payout_total = round(totals["owner_a_earnings"] + totals["owner_b_earnings"], 2)
+        owner_payout_paid = round(totals["owner_a_paid"] + totals["owner_b_paid"], 2)
+
         return {
             "total_sales": totals["total_sales"],
             "total_revenue": round(totals["total_revenue"], 2),
@@ -81,6 +91,9 @@ def summary(
             "owner_a_earnings": round(totals["owner_a_earnings"], 2),
             "owner_b_name": owners.get(0, "Dona B"),
             "owner_b_earnings": round(totals["owner_b_earnings"], 2),
+            "owner_payout_total": owner_payout_total,
+            "owner_payout_paid": owner_payout_paid,
+            "owner_payout_pending": round(owner_payout_total - owner_payout_paid, 2),
             "supplier_commission_total": round(totals["supplier_commission_total"], 2),
             "supplier_commission_paid": round(totals["supplier_commission_paid"], 2),
             "supplier_commission_pending": round(
