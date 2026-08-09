@@ -38,6 +38,20 @@ def _require_known_table(table: str) -> None:
         raise HTTPException(404, "tabela não encontrada")
 
 
+# AUDIT.md §2.2 — owners is a normal allow-listed table (unlike admin_auth, which is
+# excluded entirely), so its pin_hash/pin_salt need masking here instead: readable
+# hash+salt through the admin panel would let anyone with admin access grind a dona's
+# PIN offline, and would undermine hashing it in the first place.
+_SENSITIVE_COLUMNS = {"owners": {"pin_hash", "pin_salt"}}
+
+
+def _mask_sensitive(table: str, row: dict) -> dict:
+    sensitive = _SENSITIVE_COLUMNS.get(table)
+    if not sensitive:
+        return row
+    return {k: ("***" if k in sensitive and v is not None else v) for k, v in row.items()}
+
+
 def require_admin(admin_session: Optional[str] = Cookie(default=None)) -> None:
     if admin_session is None or admin_session not in _sessions:
         raise HTTPException(401, "não autenticado")
@@ -80,7 +94,7 @@ def list_rows(table: str):
     conn = get_connection()
     try:
         rows = conn.execute(f"SELECT * FROM {table} ORDER BY id DESC").fetchall()
-        return [dict(r) for r in rows]
+        return [_mask_sensitive(table, dict(r)) for r in rows]
     finally:
         conn.close()
 
@@ -103,7 +117,7 @@ def create_row(table: str, payload: dict[str, Any] = Body(...)):
         except sqlite3.IntegrityError as e:
             raise HTTPException(400, str(e))
         row = conn.execute(f"SELECT * FROM {table} WHERE id = ?", (cur.lastrowid,)).fetchone()
-        return dict(row)
+        return _mask_sensitive(table, dict(row))
     finally:
         conn.close()
 
@@ -126,7 +140,7 @@ def update_row(table: str, row_id: int, payload: dict[str, Any] = Body(...)):
         if cur.rowcount == 0:
             raise HTTPException(404, "linha não encontrada")
         row = conn.execute(f"SELECT * FROM {table} WHERE id = ?", (row_id,)).fetchone()
-        return dict(row)
+        return _mask_sensitive(table, dict(row))
     finally:
         conn.close()
 

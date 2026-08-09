@@ -1,7 +1,10 @@
+import secrets
+import time
 from typing import List
 
 from fastapi import APIRouter, HTTPException
 
+from backend.admin_auth import hash_password, verify_password
 from backend.db import get_connection
 from backend.money import to_reais
 from backend.schemas import OwnerOut, OwnerPayoutSaleOut, OwnerUpdate, PayoutRequest, PinVerify
@@ -12,11 +15,36 @@ router = APIRouter(prefix="/api/owners", tags=["owners"])
 # "second owner leaves the business" scenario) is a rare back-office action, called
 # directly rather than offered as a button either owner could click.
 
+# AUDIT.md §2.2 — in-memory per-owner PIN attempt tracking, same trade-off already
+# accepted for admin sessions (backend/routers/admin.py): a server restart clearing
+# lockouts is fine for a local single-user desktop app.
+PIN_MAX_ATTEMPTS = 5
+PIN_LOCKOUT_SECONDS = 30
+_pin_state: dict[int, dict] = {}  # owner_id -> {"failures": int, "locked_until": float | None}
+
+
+def _check_pin_lockout(owner_id: int) -> None:
+    state = _pin_state.get(owner_id)
+    if state and state["locked_until"] is not None and time.monotonic() < state["locked_until"]:
+        raise HTTPException(429, f"muitas tentativas — aguarde {PIN_LOCKOUT_SECONDS}s e tente novamente")
+
+
+def _record_pin_result(owner_id: int, success: bool) -> None:
+    if success:
+        _pin_state.pop(owner_id, None)
+        return
+    state = _pin_state.setdefault(owner_id, {"failures": 0, "locked_until": None})
+    state["failures"] += 1
+    if state["failures"] >= PIN_MAX_ATTEMPTS:
+        state["locked_until"] = time.monotonic() + PIN_LOCKOUT_SECONDS
+        state["failures"] = 0
+
 
 def _row_to_owner(row) -> dict:
     data = dict(row)
-    data["has_pin"] = data["pin"] is not None
-    del data["pin"]
+    data["has_pin"] = data["pin_hash"] is not None
+    del data["pin_hash"]
+    del data["pin_salt"]
     return data
 
 
@@ -44,11 +72,20 @@ def update_owner(owner_id: int, payload: OwnerUpdate):
             if active_count <= 1:
                 raise HTTPException(400, "não é possível desativar a única proprietária ativa")
 
-        if updates:
-            set_clause = ", ".join(f"{k} = ?" for k in updates)
+        # pin arrives as plaintext from the client (it's what the dona just typed) but
+        # is never stored that way — hashed here, same helper the admin password uses.
+        db_updates = {k: v for k, v in updates.items() if k != "pin"}
+        if "pin" in updates:
+            salt = secrets.token_hex(16)
+            db_updates["pin_hash"] = hash_password(updates["pin"], salt)
+            db_updates["pin_salt"] = salt
+            _pin_state.pop(owner_id, None)
+
+        if db_updates:
+            set_clause = ", ".join(f"{k} = ?" for k in db_updates)
             conn.execute(
                 f"UPDATE owners SET {set_clause} WHERE id = ?",
-                (*updates.values(), owner_id),
+                (*db_updates.values(), owner_id),
             )
             conn.commit()
             row = conn.execute("SELECT * FROM owners WHERE id = ?", (owner_id,)).fetchone()
@@ -64,10 +101,15 @@ def verify_pin(owner_id: int, payload: PinVerify):
         row = conn.execute("SELECT * FROM owners WHERE id = ?", (owner_id,)).fetchone()
         if row is None or not row["active"]:
             raise HTTPException(404, "proprietária não encontrada")
-        if row["pin"] is None:
+        if row["pin_hash"] is None:
             raise HTTPException(400, "esta proprietária ainda não tem um PIN cadastrado")
-        if payload.pin != row["pin"]:
+
+        _check_pin_lockout(owner_id)
+
+        if not verify_password(payload.pin, row["pin_hash"], row["pin_salt"]):
+            _record_pin_result(owner_id, success=False)
             raise HTTPException(401, "PIN incorreto")
+        _record_pin_result(owner_id, success=True)
         return {"ok": True}
     finally:
         conn.close()

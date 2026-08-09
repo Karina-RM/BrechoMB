@@ -6,7 +6,8 @@ CREATE TABLE IF NOT EXISTS owners (
     name TEXT NOT NULL,
     is_cut_owner INTEGER NOT NULL DEFAULT 0,
     active INTEGER NOT NULL DEFAULT 1,
-    pin TEXT
+    pin_hash TEXT,
+    pin_salt TEXT
 );
 
 CREATE TABLE IF NOT EXISTS suppliers (
@@ -234,8 +235,34 @@ def migrate_schema(conn: sqlite3.Connection) -> None:
         conn.execute("PRAGMA foreign_keys = ON")
 
     existing_owners = {row["name"] for row in conn.execute("PRAGMA table_info(owners)")}
-    if "pin" not in existing_owners:
-        conn.execute("ALTER TABLE owners ADD COLUMN pin TEXT")
+    if "pin_hash" not in existing_owners:
+        # AUDIT.md §2.2: owners.pin was plaintext (comparable via the admin panel's
+        # generic CRUD, since owners is in ADMIN_TABLES) — replaced with pin_hash/
+        # pin_salt using the same PBKDF2 helper as the admin password. Existing PINs
+        # are invalidated on purpose: there's no way to hash a value never captured as
+        # plaintext here, and recreating a PIN is a one-time, low-friction action.
+        conn.execute("PRAGMA foreign_keys = OFF")
+        conn.execute("ALTER TABLE owners RENAME TO owners_old")
+        conn.execute(
+            """
+            CREATE TABLE owners (
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                is_cut_owner INTEGER NOT NULL DEFAULT 0,
+                active INTEGER NOT NULL DEFAULT 1,
+                pin_hash TEXT,
+                pin_salt TEXT
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO owners (id, name, is_cut_owner, active)
+            SELECT id, name, is_cut_owner, active FROM owners_old
+            """
+        )
+        conn.execute("DROP TABLE owners_old")
+        conn.execute("PRAGMA foreign_keys = ON")
 
     existing_splits = {row["name"] for row in conn.execute("PRAGMA table_info(splits)")}
     if "paid_at" not in existing_splits:
