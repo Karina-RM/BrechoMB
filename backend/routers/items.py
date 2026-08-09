@@ -33,8 +33,14 @@ def _row_to_item(row: sqlite3.Row) -> dict:
 
 
 def _generate_sku(conn: sqlite3.Connection, side: str) -> str:
-    count = conn.execute("SELECT COUNT(*) FROM items WHERE sku LIKE ?", (f"{side}-%",)).fetchone()[0]
-    return f"{side}-{count + 1:04d}"
+    # Based on the highest existing number, not COUNT(*) — the admin panel allows
+    # hard-deleting item rows (AUDIT.md §1.3), and after a delete COUNT(*) undercounts,
+    # producing a SKU that collides with the UNIQUE constraint on the next create.
+    max_num = conn.execute(
+        "SELECT COALESCE(MAX(CAST(substr(sku, 3) AS INTEGER)), 0) FROM items WHERE sku LIKE ?",
+        (f"{side}-%",),
+    ).fetchone()[0]
+    return f"{side}-{max_num + 1:04d}"
 
 
 # Photos travel as base64 data URLs instead of multipart file parts — the desktop

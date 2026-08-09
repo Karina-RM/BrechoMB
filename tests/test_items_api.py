@@ -50,3 +50,19 @@ def test_update_item_rejects_department_change_incompatible_with_current_categor
         json={"department": "Livros e Mídia", "edited_by_owner_id": 1},
     )
     assert res.status_code == 400
+
+
+def test_sku_generation_does_not_collide_after_admin_hard_delete(client, admin_password):
+    # AUDIT.md §1.3: SKU used to be COUNT(*)-based, which undercounts after a hard
+    # delete and collides with the UNIQUE constraint on the next create.
+    item1 = create_item(client)
+    item2 = create_item(client)
+    item3 = create_item(client)
+    assert [item1["sku"], item2["sku"], item3["sku"]] == ["A-0001", "A-0002", "A-0003"]
+
+    client.post("/api/admin/login", json={"password": admin_password})
+    res = client.delete(f"/api/admin/tables/items/rows/{item2['id']}")
+    assert res.status_code == 200
+
+    item4 = create_item(client)
+    assert item4["sku"] == "A-0004"
