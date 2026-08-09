@@ -3,3 +3,4 @@ uvicorn[standard]
 pywebview
 python-multipart
 pytest
+httpx
