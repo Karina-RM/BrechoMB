@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException
 
 from backend.db import get_connection
 from backend.domain import get_commission_pct, get_single_active_owner, resolve_side
+from backend.money import to_cents, to_reais
 from backend.schemas import CheckoutCreate, SaleOut
 from backend.splits import calculate_split
 
@@ -16,8 +17,8 @@ def _row_to_sale(row, payments_by_receipt) -> dict:
         "id": data["id"],
         "item_id": data["item_id"],
         "sku": data["sku"],
-        "sale_price": data["sale_price"],
-        "catalog_price": data["catalog_price"],
+        "sale_price": to_reais(data["sale_price"]),
+        "catalog_price": to_reais(data["catalog_price"]),
         "discount_reason": data["discount_reason"],
         "receipt_id": data["receipt_id"],
         "payment_methods": payments_by_receipt.get(data["receipt_id"], []),
@@ -25,9 +26,9 @@ def _row_to_sale(row, payments_by_receipt) -> dict:
         "sale_date": data["sale_date"],
         "voided_at": data["voided_at"],
         "split": {
-            "owner_a": data["owner_a_amount"],
-            "owner_b": data["owner_b_amount"],
-            "supplier": data["supplier_amount"],
+            "owner_a": to_reais(data["owner_a_amount"]),
+            "owner_b": to_reais(data["owner_b_amount"]),
+            "supplier": to_reais(data["supplier_amount"]),
         },
     }
 
@@ -63,7 +64,9 @@ def _payments_by_receipt(conn, receipt_ids) -> dict:
     ).fetchall()
     result: dict = {}
     for r in rows:
-        result.setdefault(r["receipt_id"], []).append({"payment_method": r["payment_method"], "amount": r["amount"]})
+        result.setdefault(r["receipt_id"], []).append(
+            {"payment_method": r["payment_method"], "amount": to_reais(r["amount"])}
+        )
     return result
 
 
@@ -80,9 +83,10 @@ def checkout(payload: CheckoutCreate):
     for payment in payload.payments:
         if payment.amount <= 0:
             raise HTTPException(400, "o valor de cada pagamento deve ser maior que zero")
-    items_total = sum(entry.sale_price for entry in payload.items)
-    payments_total = sum(payment.amount for payment in payload.payments)
-    if abs(items_total - payments_total) > 0.01:
+    # Compared in cents, not the >0.01 float tolerance this used to need — AUDIT.md §0.1.
+    items_total_cents = sum(to_cents(entry.sale_price) for entry in payload.items)
+    payments_total_cents = sum(to_cents(payment.amount) for payment in payload.payments)
+    if items_total_cents != payments_total_cents:
         raise HTTPException(400, "a soma das formas de pagamento deve ser igual ao total da venda")
 
     conn = get_connection()
@@ -99,7 +103,7 @@ def checkout(payload: CheckoutCreate):
         for payment in payload.payments:
             conn.execute(
                 "INSERT INTO receipt_payments (receipt_id, payment_method, amount) VALUES (?, ?, ?)",
-                (receipt_id, payment.payment_method, payment.amount),
+                (receipt_id, payment.payment_method, to_cents(payment.amount)),
             )
 
         sale_ids = []
@@ -123,8 +127,9 @@ def checkout(payload: CheckoutCreate):
             side = resolve_side(conn, item["owner_id"], item["supplier_id"])
             commission_pct = get_commission_pct(conn, item)
             single_owner = get_single_active_owner(conn)
+            sale_cents = to_cents(entry.sale_price)
             split = calculate_split(
-                side=side, sale_price=entry.sale_price, commission_pct=commission_pct, single_owner=single_owner
+                side=side, sale_cents=sale_cents, commission_pct=commission_pct, single_owner=single_owner
             )
 
             cur = conn.execute(
@@ -132,7 +137,7 @@ def checkout(payload: CheckoutCreate):
                 INSERT INTO sales (item_id, sale_price, catalog_price, discount_reason, receipt_id)
                 VALUES (?, ?, ?, ?, ?)
                 """,
-                (entry.item_id, entry.sale_price, item["price"], entry.discount_reason, receipt_id),
+                (entry.item_id, sale_cents, item["price"], entry.discount_reason, receipt_id),
             )
             sale_id = cur.lastrowid
             conn.execute(

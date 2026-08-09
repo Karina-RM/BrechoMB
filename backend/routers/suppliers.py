@@ -4,6 +4,7 @@ from typing import List
 from fastapi import APIRouter, HTTPException
 
 from backend.db import get_connection
+from backend.money import to_reais
 from backend.schemas import PayoutRequest, SupplierCreate, SupplierDetailOut, SupplierOut, SupplierUpdate
 
 router = APIRouter(prefix="/api/suppliers", tags=["suppliers"])
@@ -97,8 +98,13 @@ def get_supplier(supplier_id: int):
             """,
             (supplier_id,),
         ).fetchall()
-        total_owed = round(sum(r["supplier_amount"] for r in payout_rows if r["paid_at"] is None), 2)
-        total_paid = round(sum(r["supplier_amount"] for r in payout_rows if r["paid_at"] is not None), 2)
+        # Summed in cents, then converted once — AUDIT.md §0.1.
+        total_owed = to_reais(sum(r["supplier_amount"] for r in payout_rows if r["paid_at"] is None))
+        total_paid = to_reais(sum(r["supplier_amount"] for r in payout_rows if r["paid_at"] is not None))
+        payout_sales = [
+            {**dict(r), "sale_price": to_reais(r["sale_price"]), "supplier_amount": to_reais(r["supplier_amount"])}
+            for r in payout_rows
+        ]
 
         withdrawal_rows = conn.execute(
             """
@@ -127,10 +133,10 @@ def get_supplier(supplier_id: int):
             "name": supplier["name"],
             "owner_id": supplier["owner_id"],
             "commission_pct": supplier["commission_pct"],
-            "items": [dict(r) for r in items],
+            "items": [{**dict(r), "price": to_reais(r["price"])} for r in items],
             "total_owed": total_owed,
             "total_paid": total_paid,
-            "payout_sales": [dict(r) for r in payout_rows],
+            "payout_sales": payout_sales,
             "withdrawals": withdrawals,
         }
     finally:

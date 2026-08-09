@@ -8,6 +8,7 @@ from fastapi import APIRouter, Form, HTTPException
 
 from backend.db import PHOTOS_DIR, get_connection
 from backend.domain import resolve_side
+from backend.money import to_cents, to_reais
 from backend.enums import (
     DEPARTMENT_CATEGORIES,
     SHOE_SIZE_CATEGORIES,
@@ -27,6 +28,7 @@ router = APIRouter(prefix="/api/items", tags=["items"])
 def _row_to_item(row: sqlite3.Row) -> dict:
     data = dict(row)
     data["photo_paths"] = json.loads(data["photo_paths"])
+    data["price"] = to_reais(data["price"])
     return data
 
 
@@ -109,7 +111,7 @@ def create_item(
             """,
             (
                 sku, owner_id, supplier_id,
-                size, condition, department, category, brand, color, material, observations, price,
+                size, condition, department, category, brand, color, material, observations, to_cents(price),
             ),
         )
         conn.commit()
@@ -237,6 +239,12 @@ def update_item(item_id: int, payload: ItemUpdate):
 
         updates = payload.model_dump(exclude_unset=True, exclude={"edited_by_owner_id"})
 
+        # Converted to cents (matching row["price"]'s storage) before any comparison
+        # below — comparing a reais float against a cents int would make every price
+        # edit look "changed" even when it isn't.
+        if "price" in updates and updates["price"] is not None:
+            updates["price"] = to_cents(updates["price"])
+
         # Once a piece leaves in_stock its data is frozen into the sale/split that used
         # it — further edits here would drift the item page away from what was actually
         # sold. From this point on, corrections go through the admin panel instead.
@@ -280,12 +288,16 @@ def update_item(item_id: int, payload: ItemUpdate):
                 (*changed.values(), item_id),
             )
             for field, new_value in changed.items():
+                old_value, logged_new_value = row[field], new_value
+                if field == "price":
+                    # Logged in reais, not cents — item_edits is a human-facing history.
+                    old_value, logged_new_value = to_reais(old_value), to_reais(new_value)
                 conn.execute(
                     """
                     INSERT INTO item_edits (item_id, field, old_value, new_value, edited_by_owner_id)
                     VALUES (?, ?, ?, ?, ?)
                     """,
-                    (item_id, field, row[field], new_value, payload.edited_by_owner_id),
+                    (item_id, field, old_value, logged_new_value, payload.edited_by_owner_id),
                 )
             conn.commit()
             row = conn.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()

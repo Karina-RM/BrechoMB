@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS items (
     color TEXT,
     material TEXT,
     observations TEXT,
-    price REAL NOT NULL,
+    price INTEGER NOT NULL,
     status TEXT NOT NULL DEFAULT 'in_stock',
     intake_date TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deleted_at TEXT,
@@ -52,14 +52,14 @@ CREATE TABLE IF NOT EXISTS receipt_payments (
     id INTEGER PRIMARY KEY,
     receipt_id INTEGER NOT NULL REFERENCES receipts(id),
     payment_method TEXT NOT NULL,
-    amount REAL NOT NULL
+    amount INTEGER NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS sales (
     id INTEGER PRIMARY KEY,
     item_id INTEGER NOT NULL REFERENCES items(id),
-    sale_price REAL NOT NULL,
-    catalog_price REAL NOT NULL,
+    sale_price INTEGER NOT NULL,
+    catalog_price INTEGER NOT NULL,
     discount_reason TEXT,
     receipt_id INTEGER NOT NULL REFERENCES receipts(id),
     sale_date TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -69,10 +69,10 @@ CREATE TABLE IF NOT EXISTS sales (
 CREATE TABLE IF NOT EXISTS splits (
     id INTEGER PRIMARY KEY,
     sale_id INTEGER NOT NULL UNIQUE REFERENCES sales(id),
-    owner_a_amount REAL NOT NULL,
-    owner_b_amount REAL NOT NULL,
+    owner_a_amount INTEGER NOT NULL,
+    owner_b_amount INTEGER NOT NULL,
     supplier_id INTEGER REFERENCES suppliers(id),
-    supplier_amount REAL NOT NULL DEFAULT 0,
+    supplier_amount INTEGER NOT NULL DEFAULT 0,
     paid_at TEXT,
     owner_a_paid_at TEXT,
     owner_b_paid_at TEXT
@@ -372,6 +372,144 @@ def migrate_schema(conn: sqlite3.Connection) -> None:
         )
         conn.execute("DROP TABLE receipts_old")
         conn.execute("PRAGMA foreign_keys = ON")
+
+    # Every monetary column (items.price, sales.sale_price/catalog_price,
+    # receipt_payments.amount, splits.owner_a_amount/owner_b_amount/supplier_amount) was
+    # REAL, which accumulates binary rounding error — see backend/splits.py and
+    # AUDIT.md §0.1. Converted here to INTEGER cents; commission_pct stays REAL, since
+    # it's a percentage, not money. A dedicated marker table (rather than checking for a
+    # new/renamed column, this migration's usual idiom elsewhere in this file) is used
+    # for idempotency here because every column keeps its original name — there's no
+    # "does this column exist yet" signal to key off of.
+    conn.execute("CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY)")
+    money_migrated = conn.execute(
+        "SELECT 1 FROM schema_migrations WHERE name = 'money_to_cents'"
+    ).fetchone()
+    if not money_migrated:
+        conn.commit()  # flush any pending implicit transaction before toggling PRAGMA
+        conn.execute("PRAGMA foreign_keys = OFF")
+
+        conn.execute("ALTER TABLE items RENAME TO items_old")
+        conn.execute(
+            """
+            CREATE TABLE items (
+                id INTEGER PRIMARY KEY,
+                sku TEXT NOT NULL UNIQUE,
+                owner_id INTEGER REFERENCES owners(id),
+                supplier_id INTEGER REFERENCES suppliers(id),
+                photo_paths TEXT NOT NULL DEFAULT '[]',
+                size TEXT,
+                condition TEXT,
+                department TEXT,
+                category TEXT,
+                brand TEXT,
+                color TEXT,
+                material TEXT,
+                observations TEXT,
+                price INTEGER NOT NULL,
+                status TEXT NOT NULL DEFAULT 'in_stock',
+                intake_date TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                deleted_at TEXT,
+                CHECK ((owner_id IS NULL) != (supplier_id IS NULL)),
+                CHECK (status IN ('in_stock', 'sold', 'withdrawn', 'deleted'))
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO items (
+                id, sku, owner_id, supplier_id, photo_paths,
+                size, condition, department, category, brand, color, material,
+                observations, price, status, intake_date, deleted_at
+            )
+            SELECT
+                id, sku, owner_id, supplier_id, photo_paths,
+                size, condition, department, category, brand, color, material,
+                observations, CAST(ROUND(price * 100) AS INTEGER), status, intake_date, deleted_at
+            FROM items_old
+            """
+        )
+        conn.execute("DROP TABLE items_old")
+
+        conn.execute("ALTER TABLE sales RENAME TO sales_old")
+        conn.execute(
+            """
+            CREATE TABLE sales (
+                id INTEGER PRIMARY KEY,
+                item_id INTEGER NOT NULL REFERENCES items(id),
+                sale_price INTEGER NOT NULL,
+                catalog_price INTEGER NOT NULL,
+                discount_reason TEXT,
+                receipt_id INTEGER NOT NULL REFERENCES receipts(id),
+                sale_date TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                voided_at TEXT
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO sales (id, item_id, sale_price, catalog_price, discount_reason, receipt_id, sale_date, voided_at)
+            SELECT
+                id, item_id, CAST(ROUND(sale_price * 100) AS INTEGER), CAST(ROUND(catalog_price * 100) AS INTEGER),
+                discount_reason, receipt_id, sale_date, voided_at
+            FROM sales_old
+            """
+        )
+        conn.execute("DROP TABLE sales_old")
+
+        conn.execute("ALTER TABLE receipt_payments RENAME TO receipt_payments_old")
+        conn.execute(
+            """
+            CREATE TABLE receipt_payments (
+                id INTEGER PRIMARY KEY,
+                receipt_id INTEGER NOT NULL REFERENCES receipts(id),
+                payment_method TEXT NOT NULL,
+                amount INTEGER NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO receipt_payments (id, receipt_id, payment_method, amount)
+            SELECT id, receipt_id, payment_method, CAST(ROUND(amount * 100) AS INTEGER)
+            FROM receipt_payments_old
+            """
+        )
+        conn.execute("DROP TABLE receipt_payments_old")
+
+        conn.execute("ALTER TABLE splits RENAME TO splits_old")
+        conn.execute(
+            """
+            CREATE TABLE splits (
+                id INTEGER PRIMARY KEY,
+                sale_id INTEGER NOT NULL UNIQUE REFERENCES sales(id),
+                owner_a_amount INTEGER NOT NULL,
+                owner_b_amount INTEGER NOT NULL,
+                supplier_id INTEGER REFERENCES suppliers(id),
+                supplier_amount INTEGER NOT NULL DEFAULT 0,
+                paid_at TEXT,
+                owner_a_paid_at TEXT,
+                owner_b_paid_at TEXT
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO splits (
+                id, sale_id, owner_a_amount, owner_b_amount, supplier_id, supplier_amount,
+                paid_at, owner_a_paid_at, owner_b_paid_at
+            )
+            SELECT
+                id, sale_id, CAST(ROUND(owner_a_amount * 100) AS INTEGER), CAST(ROUND(owner_b_amount * 100) AS INTEGER),
+                supplier_id, CAST(ROUND(supplier_amount * 100) AS INTEGER),
+                paid_at, owner_a_paid_at, owner_b_paid_at
+            FROM splits_old
+            """
+        )
+        conn.execute("DROP TABLE splits_old")
+
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute("INSERT INTO schema_migrations (name) VALUES ('money_to_cents')")
 
     # Created here rather than in SCHEMA: on an existing (not-yet-rebuilt) database,
     # create_schema() runs before this function and would fail referencing voided_at on

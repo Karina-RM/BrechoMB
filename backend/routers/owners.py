@@ -3,6 +3,7 @@ from typing import List
 from fastapi import APIRouter, HTTPException
 
 from backend.db import get_connection
+from backend.money import to_reais
 from backend.schemas import OwnerOut, OwnerPayoutSaleOut, OwnerUpdate, PayoutRequest, PinVerify
 
 router = APIRouter(prefix="/api/owners", tags=["owners"])
@@ -92,7 +93,7 @@ def _list_owner_payouts(conn, owner_id: int) -> list:
         ORDER BY sales.sale_date DESC
         """
     ).fetchall()
-    return [dict(r) for r in rows]
+    return [{**dict(r), "amount": to_reais(r["amount"])} for r in rows]
 
 
 @router.get("/{owner_id}/payouts", response_model=List[OwnerPayoutSaleOut])

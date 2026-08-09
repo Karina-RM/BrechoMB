@@ -3,6 +3,7 @@ from typing import List, Optional
 from fastapi import APIRouter, HTTPException
 
 from backend.db import get_connection
+from backend.money import to_reais
 from backend.schemas import CategoryReportRow, ReportSummaryOut, SupplierReportRow, TimelineRow
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
@@ -78,27 +79,31 @@ def summary(
             params,
         ).fetchone()
 
-        # Combined across both donas — deliberately not split by identity here, so this
-        # figure stays safe for the shop-wide Relatórios landing page (see
-        # frontend loadReportSummary). The per-owner breakdown lives in Proprietárias.
-        owner_payout_total = round(totals["owner_a_earnings"] + totals["owner_b_earnings"], 2)
-        owner_payout_paid = round(totals["owner_a_paid"] + totals["owner_b_paid"], 2)
+        # Summed in cents (COALESCE/SUM above), converted to reais once here — AUDIT.md
+        # §0.1. owner_payout_total/paid are combined across both donas — deliberately not
+        # split by identity, so this figure stays safe for the shop-wide Relatórios
+        # landing page (see frontend loadReportSummary). Per-owner breakdown lives in
+        # Proprietárias.
+        owner_a_earnings = to_reais(totals["owner_a_earnings"])
+        owner_b_earnings = to_reais(totals["owner_b_earnings"])
+        owner_payout_paid = to_reais(totals["owner_a_paid"] + totals["owner_b_paid"])
+        supplier_commission_total = to_reais(totals["supplier_commission_total"])
+        supplier_commission_paid = to_reais(totals["supplier_commission_paid"])
+        owner_payout_total = round(owner_a_earnings + owner_b_earnings, 2)
 
         return {
             "total_sales": totals["total_sales"],
-            "total_revenue": round(totals["total_revenue"], 2),
+            "total_revenue": to_reais(totals["total_revenue"]),
             "owner_a_name": owners.get(1, "Dona A"),
-            "owner_a_earnings": round(totals["owner_a_earnings"], 2),
+            "owner_a_earnings": owner_a_earnings,
             "owner_b_name": owners.get(0, "Dona B"),
-            "owner_b_earnings": round(totals["owner_b_earnings"], 2),
+            "owner_b_earnings": owner_b_earnings,
             "owner_payout_total": owner_payout_total,
             "owner_payout_paid": owner_payout_paid,
             "owner_payout_pending": round(owner_payout_total - owner_payout_paid, 2),
-            "supplier_commission_total": round(totals["supplier_commission_total"], 2),
-            "supplier_commission_paid": round(totals["supplier_commission_paid"], 2),
-            "supplier_commission_pending": round(
-                totals["supplier_commission_total"] - totals["supplier_commission_paid"], 2
-            ),
+            "supplier_commission_total": supplier_commission_total,
+            "supplier_commission_paid": supplier_commission_paid,
+            "supplier_commission_pending": round(supplier_commission_total - supplier_commission_paid, 2),
         }
     finally:
         conn.close()
@@ -126,7 +131,7 @@ def by_category(
             """,
             params,
         ).fetchall()
-        return [dict(r) for r in rows]
+        return [{**dict(r), "total_revenue": to_reais(r["total_revenue"])} for r in rows]
     finally:
         conn.close()
 
@@ -158,7 +163,10 @@ def by_supplier(
             """,
             params,
         ).fetchall()
-        return [dict(r) for r in rows]
+        return [
+            {**dict(r), "total_revenue": to_reais(r["total_revenue"]), "total_commission": to_reais(r["total_commission"])}
+            for r in rows
+        ]
     finally:
         conn.close()
 
@@ -191,6 +199,6 @@ def timeline(
             """,
             params,
         ).fetchall()
-        return [dict(r) for r in rows]
+        return [{**dict(r), "total_revenue": to_reais(r["total_revenue"])} for r in rows]
     finally:
         conn.close()
