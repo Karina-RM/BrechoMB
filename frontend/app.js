@@ -16,6 +16,14 @@ window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e)
 
 const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
+// AUDIT.md §1.1 — every value from the API or user input that ends up inside an
+// innerHTML template literal must go through this first. Never applied to markup this
+// file itself generates (SVG icon paths, class strings, static labels) — only to data.
+function esc(value) {
+  if (value === null || value === undefined) return "";
+  return String(value).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
 const STATUS_LABELS = {
   in_stock: "em estoque",
   sold: "vendido",
@@ -190,7 +198,7 @@ function renderPaymentRowsInto(containerId, rows, changeFn, removeFn) {
         <div class="grid flex-1 grid-cols-1">
           <select id="${containerId}-method-${idx}" onchange="${changeFn}(${idx}, 'method', this.value)" class="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-gray-800"></select>
         </div>
-        <input type="text" inputmode="decimal" value="${row.amount}" oninput="${changeFn}(${idx}, 'amount', this.value)" placeholder="0,00" class="block w-24 rounded-md bg-white px-2 py-1.5 text-sm text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 dark:bg-white/5 dark:text-white dark:outline-white/10" />
+        <input type="text" inputmode="decimal" value="${esc(row.amount)}" oninput="${changeFn}(${idx}, 'amount', this.value)" placeholder="0,00" class="block w-24 rounded-md bg-white px-2 py-1.5 text-sm text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 dark:bg-white/5 dark:text-white dark:outline-white/10" />
         ${
           rows.length > 1
             ? `<button type="button" onclick="${removeFn}(${idx})" aria-label="Remover forma de pagamento" class="shrink-0 rounded-md p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400"><svg viewBox="0 0 20 20" fill="currentColor" class="size-5"><path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" /></svg></button>`
@@ -209,7 +217,7 @@ function renderPaymentRowsInto(containerId, rows, changeFn, removeFn) {
 
 function formatPaymentMethods(paymentMethods) {
   if (!paymentMethods || paymentMethods.length === 0) return "—";
-  return paymentMethods.map((p) => `${p.payment_method} (${currency.format(p.amount)})`).join(", ");
+  return paymentMethods.map((p) => `${esc(p.payment_method)} (${currency.format(p.amount)})`).join(", ");
 }
 
 // prefix lets the item-detail edit form (§6.3) reuse this same cascade against its own
@@ -535,7 +543,7 @@ async function renderLockScreen(mode, ownerId, message, fromSettings) {
             .filter((o) => o.active)
             .map(
               (o) => `
-            <button type="button" data-choose-owner="${o.id}" data-has-pin="${o.has_pin}" class="rounded-lg bg-pink-600 px-8 py-6 text-lg font-semibold text-white shadow-xs hover:bg-pink-500 dark:bg-pink-500 dark:hover:bg-pink-400">${o.name}</button>
+            <button type="button" data-choose-owner="${o.id}" data-has-pin="${o.has_pin}" class="rounded-lg bg-pink-600 px-8 py-6 text-lg font-semibold text-white shadow-xs hover:bg-pink-500 dark:bg-pink-500 dark:hover:bg-pink-400">${esc(o.name)}</button>
           `
             )
             .join("")}
@@ -660,7 +668,7 @@ async function handlePinSubmit(ownerId, mode, fromSettings) {
     if (fromSettings) {
       hideLockScreen();
       await loadSettings();
-      showAlert("settings-alert-slot", `PIN de ${owner.name} atualizado.`, "success");
+      showAlert("settings-alert-slot", `PIN de ${esc(owner.name)} atualizado.`, "success");
     } else {
       completeLogin(ownerId, owner.name);
     }
@@ -693,7 +701,7 @@ function updateSessionIndicator() {
   const el = document.getElementById("session-indicator");
   if (!el) return;
   el.innerHTML = session.ownerName
-    ? `Sessão: ${session.ownerName} · <button type="button" id="switch-session" class="font-medium text-pink-600 hover:text-pink-500 dark:text-pink-400">Trocar</button>`
+    ? `Sessão: ${esc(session.ownerName)} · <button type="button" id="switch-session" class="font-medium text-pink-600 hover:text-pink-500 dark:text-pink-400">Trocar</button>`
     : "";
   document.getElementById("switch-session")?.addEventListener("click", () => showLockScreen("choose"));
 }
@@ -751,7 +759,7 @@ function renderDonaSelector() {
         o.id === currentDonaId
           ? "bg-pink-600 text-white hover:bg-pink-500 dark:bg-pink-500 dark:hover:bg-pink-400"
           : "bg-white text-gray-900 inset-ring inset-ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-gray-100 dark:inset-ring-white/5 dark:hover:bg-white/20"
-      }">${o.name}</button>
+      }">${esc(o.name)}</button>
     `
     )
     .join("");
@@ -773,7 +781,7 @@ async function renderDonaDetail() {
   container.innerHTML = `
     <div class="rounded-lg bg-white p-6 shadow-xs inset-ring inset-ring-gray-200 dark:bg-white/5 dark:inset-ring-white/10">
       <div class="flex flex-wrap items-center justify-between gap-4">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">${owner.name}</h3>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">${esc(owner.name)}</h3>
         <div class="text-right">
           <p class="text-sm text-gray-500 dark:text-gray-400">${owner.has_pin ? "PIN já cadastrado" : "Nenhum PIN cadastrado ainda"}</p>
           <button type="button" data-reset-pin="${owner.id}" class="mt-2 rounded-md bg-white px-3 py-1.5 text-sm font-semibold text-gray-900 shadow-xs inset-ring inset-ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-gray-100 dark:inset-ring-white/5 dark:hover:bg-white/20">Redefinir PIN</button>
@@ -941,7 +949,7 @@ async function loadDonaReportBySupplier(ownerId, params) {
     .map(
       (r) => `
       <tr>
-        <td class="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-gray-900 sm:pl-0 dark:text-white">${r.supplier_name}</td>
+        <td class="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-gray-900 sm:pl-0 dark:text-white">${esc(r.supplier_name)}</td>
         <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${r.count}</td>
         <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${currency.format(r.total_revenue)}</td>
         <td class="py-4 pr-4 pl-3 text-sm whitespace-nowrap text-gray-500 sm:pr-0 dark:text-gray-400">${currency.format(r.total_commission)}</td>
@@ -1093,11 +1101,14 @@ async function loadAssignments() {
   const ownerA = owners.find((o) => o.is_cut_owner);
   const ownerB = owners.find((o) => !o.is_cut_owner);
   if (ownerA) {
-    ownerAName = ownerA.name;
+    // Escaped here, once — ownerAName/ownerBName only ever get used inside innerHTML
+    // template literals elsewhere in this file (the header textContent below is its
+    // own separate, already-safe assignment).
+    ownerAName = esc(ownerA.name);
     document.getElementById("owner-a-header").textContent = ownerA.name;
   }
   if (ownerB) {
-    ownerBName = ownerB.name;
+    ownerBName = esc(ownerB.name);
     document.getElementById("owner-b-header").textContent = ownerB.name;
   }
 
@@ -1105,9 +1116,9 @@ async function loadAssignments() {
 
 function describeItem(item) {
   if (item.owner_id != null) {
-    return assignmentLookup[`owner:${item.owner_id}`] || `proprietária #${item.owner_id}`;
+    return esc(assignmentLookup[`owner:${item.owner_id}`]) || `proprietária #${item.owner_id}`;
   }
-  return assignmentLookup[`supplier:${item.supplier_id}`] || `fornecedora #${item.supplier_id}`;
+  return esc(assignmentLookup[`supplier:${item.supplier_id}`]) || `fornecedora #${item.supplier_id}`;
 }
 
 let currentInventoryItems = [];
@@ -1237,15 +1248,15 @@ function renderInventoryListRow(item) {
         <a href="#items/${item.id}" class="block size-10 overflow-hidden rounded-md bg-gray-100 dark:bg-gray-800">${renderPhotoOrIcon(item)}</a>
       </td>
       <td class="px-3 py-2 text-sm font-medium whitespace-nowrap text-gray-900 dark:text-white">
-        <a href="#items/${item.id}" class="hover:text-pink-600 dark:hover:text-pink-400">${item.sku}</a>
+        <a href="#items/${item.id}" class="hover:text-pink-600 dark:hover:text-pink-400">${esc(item.sku)}</a>
       </td>
-      <td class="extra-col px-3 py-2 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${item.department ?? "—"}</td>
-      <td class="px-3 py-2 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${item.category ?? "—"}${item.size ? ` · ${item.size}` : ""}</td>
-      <td class="extra-col px-3 py-2 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${item.brand ?? "—"}</td>
-      <td class="extra-col px-3 py-2 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${item.condition ?? "—"}</td>
-      <td class="extra-col px-3 py-2 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${item.color ?? "—"}</td>
-      <td class="extra-col px-3 py-2 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${item.material ?? "—"}</td>
-      <td class="extra-col max-w-40 truncate px-3 py-2 text-sm text-gray-500 dark:text-gray-400" title="${item.observations ?? ""}">${item.observations ?? "—"}</td>
+      <td class="extra-col px-3 py-2 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${esc(item.department) || "—"}</td>
+      <td class="px-3 py-2 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${esc(item.category) || "—"}${item.size ? ` · ${esc(item.size)}` : ""}</td>
+      <td class="extra-col px-3 py-2 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${esc(item.brand) || "—"}</td>
+      <td class="extra-col px-3 py-2 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${esc(item.condition) || "—"}</td>
+      <td class="extra-col px-3 py-2 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${esc(item.color) || "—"}</td>
+      <td class="extra-col px-3 py-2 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${esc(item.material) || "—"}</td>
+      <td class="extra-col max-w-40 truncate px-3 py-2 text-sm text-gray-500 dark:text-gray-400" title="${esc(item.observations)}">${esc(item.observations) || "—"}</td>
       <td class="px-3 py-2 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${currency.format(item.price)}</td>
       <td class="px-3 py-2 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${describeItem(item)}</td>
       <td class="px-3 py-2 text-sm whitespace-nowrap">${statusBadge(item.status)}</td>
@@ -1285,10 +1296,10 @@ function renderInventoryCard(item) {
       </a>
       <div class="space-y-1 p-3">
         <div class="flex items-center justify-between gap-2">
-          <a href="#items/${item.id}" class="truncate font-semibold text-gray-900 hover:text-pink-600 dark:text-white dark:hover:text-pink-400">${item.sku}</a>
+          <a href="#items/${item.id}" class="truncate font-semibold text-gray-900 hover:text-pink-600 dark:text-white dark:hover:text-pink-400">${esc(item.sku)}</a>
           ${statusBadge(item.status)}
         </div>
-        <p class="truncate text-sm text-gray-500 dark:text-gray-400">${item.category ?? "—"}${item.size ? ` · ${item.size}` : ""}</p>
+        <p class="truncate text-sm text-gray-500 dark:text-gray-400">${esc(item.category) || "—"}${item.size ? ` · ${esc(item.size)}` : ""}</p>
         <p class="text-lg font-bold text-gray-900 dark:text-white">${currency.format(item.price)}</p>
         <p class="truncate text-xs text-gray-400 dark:text-gray-500">${describeItem(item)}</p>
       </div>
@@ -1346,7 +1357,7 @@ function openCartDrawer() {
           </div>
           <div class="flex-1 space-y-2">
             <div class="flex items-center justify-between gap-2">
-              <p class="text-sm font-semibold text-gray-900 dark:text-white">${item.sku}</p>
+              <p class="text-sm font-semibold text-gray-900 dark:text-white">${esc(item.sku)}</p>
               <label class="flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">
                 <input type="checkbox" id="cart-discount-toggle-${itemId}" onchange="toggleCartDiscount(${itemId})" class="size-3.5 rounded border-gray-300 text-pink-600 focus:ring-pink-600 dark:border-white/20 dark:bg-white/10" />
                 Desconto
@@ -1361,7 +1372,7 @@ function openCartDrawer() {
             </div>
             <div id="cart-discount-wrapper-${itemId}" hidden>
               <label for="cart-discount-${itemId}" class="block text-xs font-medium text-gray-500 dark:text-gray-400">Motivo do desconto (opcional)</label>
-              <input type="text" id="cart-discount-${itemId}" value="${entry.discountReason}" placeholder="ex: mancha encontrada na hora da venda" class="mt-1 block w-full rounded-md bg-white px-2 py-1 text-sm text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:placeholder:text-gray-500" />
+              <input type="text" id="cart-discount-${itemId}" value="${esc(entry.discountReason)}" placeholder="ex: mancha encontrada na hora da venda" class="mt-1 block w-full rounded-md bg-white px-2 py-1 text-sm text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:placeholder:text-gray-500" />
             </div>
           </div>
         </div>
@@ -1475,7 +1486,7 @@ function renderSellCard(item) {
         ${renderPhotoOrIcon(item)}
       </div>
       <div class="space-y-3 p-3">
-        <p class="truncate font-semibold text-gray-900 dark:text-white">${item.sku}</p>
+        <p class="truncate font-semibold text-gray-900 dark:text-white">${esc(item.sku)}</p>
         <div>
           <div class="flex items-center justify-between">
             <label for="sell-price-${item.id}" class="block text-xs font-medium text-gray-500 dark:text-gray-400">Preço de venda (R$)</label>
@@ -1599,7 +1610,7 @@ async function confirmSellCard(itemId) {
     await loadReports();
     showAlert(
       "inventory-alert-slot",
-      `Venda de ${sale.sku} registrada: ${ownerAName} ${currency.format(sale.split.owner_a)}, ` +
+      `Venda de ${esc(sale.sku)} registrada: ${ownerAName} ${currency.format(sale.split.owner_a)}, ` +
         `${ownerBName} ${currency.format(sale.split.owner_b)}, Fornecedora ${currency.format(sale.split.supplier)}`,
       "success"
     );
@@ -1665,14 +1676,14 @@ async function loadSales() {
       ? `<span class="text-gray-400 dark:text-gray-500">Estornada</span>`
       : `<button type="button" onclick="handleVoidSale(${sale.id})" class="text-pink-600 hover:text-pink-900 dark:text-pink-400 dark:hover:text-pink-300">Estornar</button>`;
     tr.innerHTML = `
-      <td class="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap sm:pl-0"><a href="#items/${sale.item_id}" class="text-gray-900 hover:text-pink-600 dark:text-white dark:hover:text-pink-400">${sale.sku}</a></td>
+      <td class="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap sm:pl-0"><a href="#items/${sale.item_id}" class="text-gray-900 hover:text-pink-600 dark:text-white dark:hover:text-pink-400">${esc(sale.sku)}</a></td>
       <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">#${sale.receipt_id}</td>
       <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${formatDate(sale.sale_date)}</td>
       <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${currency.format(sale.sale_price)}</td>
       <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${currency.format(sale.split.owner_a)}</td>
       <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${currency.format(sale.split.owner_b)}</td>
       <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${currency.format(sale.split.supplier)}</td>
-      <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${sale.sold_by_owner_name ?? "—"}</td>
+      <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${esc(sale.sold_by_owner_name) || "—"}</td>
       <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${formatPaymentMethods(sale.payment_methods)}</td>
       <td class="py-4 pr-4 pl-3 text-sm font-medium whitespace-nowrap sm:pr-0">${action}</td>
     `;
@@ -1712,8 +1723,8 @@ async function loadSuppliers() {
       const owner = ownerById[supplier.owner_id];
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td class="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-gray-900 sm:pl-0 dark:text-white">${supplier.name}</td>
-        <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${owner ? owner.name : "—"}</td>
+        <td class="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-gray-900 sm:pl-0 dark:text-white">${esc(supplier.name)}</td>
+        <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${owner ? esc(owner.name) : "—"}</td>
         <td class="px-3 py-4 text-sm whitespace-nowrap">
           <div class="flex items-center gap-2">
             <input type="text" inputmode="decimal" id="commission-input-${supplier.id}" value="${String(supplier.commission_pct).replace(".", ",")}"
@@ -1767,8 +1778,8 @@ async function showSupplierDetail(supplierId) {
         .map(
           (item) => `
         <tr>
-          <td class="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-gray-900 sm:pl-0 dark:text-white">${item.sku}</td>
-          <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${item.category ?? "—"}</td>
+          <td class="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-gray-900 sm:pl-0 dark:text-white">${esc(item.sku)}</td>
+          <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${esc(item.category) || "—"}</td>
           <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${currency.format(item.price)}</td>
           <td class="py-4 pr-4 pl-3 text-sm whitespace-nowrap sm:pr-0">${statusBadge(item.status)}</td>
         </tr>
@@ -1792,7 +1803,7 @@ async function showSupplierDetail(supplierId) {
       .map(
         (w) => `
       <tr>
-        <td class="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-gray-900 sm:pl-0 dark:text-white">${w.sku}</td>
+        <td class="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-gray-900 sm:pl-0 dark:text-white">${esc(w.sku)}</td>
         <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${formatDate(w.intake_date)}</td>
         <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${formatDate(w.withdrawn_date)}</td>
         <td class="py-4 pr-4 pl-3 text-sm whitespace-nowrap text-gray-500 sm:pr-0 dark:text-gray-400">${w.days_in_store}</td>
@@ -1836,7 +1847,7 @@ function renderSupplierPayoutsTable() {
           <td class="py-4 pr-3 pl-4 sm:pl-0">${
             p.paid_at ? "" : `<input type="checkbox" onchange="toggleSupplierPayoutSelection(${p.sale_id}, this.checked)" ${selectedSupplierPayoutSaleIds.has(p.sale_id) ? "checked" : ""} class="size-3.5 rounded border-gray-300 text-pink-600 focus:ring-pink-600 dark:border-white/20 dark:bg-white/10" />`
           }</td>
-          <td class="px-3 py-4 text-sm font-medium whitespace-nowrap"><a href="#items/${p.item_id}" class="text-gray-900 hover:text-pink-600 dark:text-white dark:hover:text-pink-400">${p.sku}</a></td>
+          <td class="px-3 py-4 text-sm font-medium whitespace-nowrap"><a href="#items/${p.item_id}" class="text-gray-900 hover:text-pink-600 dark:text-white dark:hover:text-pink-400">${esc(p.sku)}</a></td>
           <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${formatDate(p.sale_date)}</td>
           <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${currency.format(p.supplier_amount)}</td>
           <td class="px-3 py-4 text-sm whitespace-nowrap">${status}</td>
@@ -1969,7 +1980,7 @@ function renderOwnerPayoutsTable(ownerId) {
           <td class="py-4 pr-3 pl-4 sm:pl-0">${
             p.paid_at ? "" : `<input type="checkbox" onchange="toggleOwnerPayoutSelection(${ownerId}, ${p.sale_id}, this.checked)" ${selected.has(p.sale_id) ? "checked" : ""} class="size-3.5 rounded border-gray-300 text-pink-600 focus:ring-pink-600 dark:border-white/20 dark:bg-white/10" />`
           }</td>
-          <td class="px-3 py-4 text-sm font-medium whitespace-nowrap"><a href="#items/${p.item_id}" class="text-gray-900 hover:text-pink-600 dark:text-white dark:hover:text-pink-400">${p.sku}</a></td>
+          <td class="px-3 py-4 text-sm font-medium whitespace-nowrap"><a href="#items/${p.item_id}" class="text-gray-900 hover:text-pink-600 dark:text-white dark:hover:text-pink-400">${esc(p.sku)}</a></td>
           <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${formatDate(p.sale_date)}</td>
           <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${currency.format(p.amount)}</td>
           <td class="px-3 py-4 text-sm whitespace-nowrap">${status}</td>
@@ -2079,14 +2090,14 @@ async function showItemDetail(itemId) {
 
   const fields = [
     ["Vinculada a", describeItem(item)],
-    ["Departamento", item.department ?? "—"],
-    ["Categoria", item.category ?? "—"],
-    ["Marca", item.brand ?? "—"],
-    ["Tamanho", item.size ?? "—"],
-    ["Condição", item.condition ?? "—"],
-    ["Cor / Estampa", item.color ?? "—"],
-    ["Material", item.material ?? "—"],
-    ["Observações", item.observations ?? "—"],
+    ["Departamento", esc(item.department) || "—"],
+    ["Categoria", esc(item.category) || "—"],
+    ["Marca", esc(item.brand) || "—"],
+    ["Tamanho", esc(item.size) || "—"],
+    ["Condição", esc(item.condition) || "—"],
+    ["Cor / Estampa", esc(item.color) || "—"],
+    ["Material", esc(item.material) || "—"],
+    ["Observações", esc(item.observations) || "—"],
     ["Preço", currency.format(item.price)],
     ["Data de entrada", formatDate(item.intake_date)],
   ];
@@ -2099,9 +2110,9 @@ async function showItemDetail(itemId) {
       ...(item.sale.voided_at ? [["Estornada em", formatDate(item.sale.voided_at)]] : []),
       ["Data da venda", formatDate(item.sale.sale_date)],
       ["Preço de venda", currency.format(item.sale.sale_price)],
-      ["Vendida por", item.sale.sold_by_owner_name ?? "—"],
+      ["Vendida por", esc(item.sale.sold_by_owner_name) || "—"],
       ["Forma de pagamento", formatPaymentMethods(item.sale.payment_methods)],
-      ...(item.sale.discount_reason ? [["Motivo do desconto", item.sale.discount_reason]] : []),
+      ...(item.sale.discount_reason ? [["Motivo do desconto", esc(item.sale.discount_reason)]] : []),
       [ownerAName, currency.format(item.sale.split.owner_a)],
       [ownerBName, currency.format(item.sale.split.owner_b)],
       ["Fornecedora", currency.format(item.sale.split.supplier)],
@@ -2123,10 +2134,12 @@ async function showItemDetail(itemId) {
   editsSection.hidden = item.edits.length === 0;
   if (item.edits.length > 0) {
     const editRows = item.edits.map((e) => {
-      const label = ITEM_EDIT_FIELD_LABELS[e.field] || e.field;
-      const format = e.field === "price" ? formatEditPrice : e.field === "commission_pct_override" ? formatEditPercent : (v) => v ?? "—";
+      const label = esc(ITEM_EDIT_FIELD_LABELS[e.field] || e.field);
+      // Every field except price/commission is free text (brand, color, observations,
+      // ...) stored as-is in item_edits, so the default formatter must escape it.
+      const format = e.field === "price" ? formatEditPrice : e.field === "commission_pct_override" ? formatEditPercent : (v) => esc(v) || "—";
       return [
-        `${label} · ${e.edited_by_owner_name ?? "—"} · ${formatDate(e.edited_at)}`,
+        `${label} · ${esc(e.edited_by_owner_name) || "—"} · ${formatDate(e.edited_at)}`,
         `${format(e.old_value)} → ${format(e.new_value)}`,
       ];
     });
@@ -2184,27 +2197,27 @@ function renderItemEditForm(item) {
       <div>
         <label for="edit-brand" class="block text-sm/6 font-medium text-gray-900 dark:text-gray-100">Marca</label>
         <div class="mt-2">
-          <input type="text" id="edit-brand" value="${item.brand ?? ""}" class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10" />
+          <input type="text" id="edit-brand" value="${esc(item.brand)}" class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10" />
         </div>
       </div>
       <div class="grid grid-cols-2 gap-4">
         <div>
           <label for="edit-color" class="block text-sm/6 font-medium text-gray-900 dark:text-gray-100">Cor / Estampa</label>
           <div class="mt-2">
-            <input type="text" id="edit-color" value="${item.color ?? ""}" class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10" />
+            <input type="text" id="edit-color" value="${esc(item.color)}" class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10" />
           </div>
         </div>
         <div>
           <label for="edit-material" class="block text-sm/6 font-medium text-gray-900 dark:text-gray-100">Material</label>
           <div class="mt-2">
-            <input type="text" id="edit-material" value="${item.material ?? ""}" class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10" />
+            <input type="text" id="edit-material" value="${esc(item.material)}" class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10" />
           </div>
         </div>
       </div>
       <div>
         <label for="edit-observations" class="block text-sm/6 font-medium text-gray-900 dark:text-gray-100">Observações</label>
         <div class="mt-2">
-          <textarea id="edit-observations" rows="3" class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10">${item.observations ?? ""}</textarea>
+          <textarea id="edit-observations" rows="3" class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10">${esc(item.observations)}</textarea>
         </div>
       </div>
       <p id="item-edit-message" class="text-sm"></p>
@@ -2383,7 +2396,7 @@ function renderHorizontalBarChart(rows, labelKey, valueKey, formatValue) {
       ${rows
         .map((r) => {
           const pct = Math.max((r[valueKey] / max) * 100, 2);
-          const label = r[labelKey] ?? "sem categoria";
+          const label = esc(r[labelKey]) || "sem categoria";
           return `
         <div class="flex items-center gap-3" title="${label}: ${formatValue(r[valueKey])}">
           <span class="w-32 shrink-0 truncate text-xs" style="color: var(--viz-text-secondary)">${label}</span>
@@ -2412,7 +2425,7 @@ function renderVerticalBarChart(rows, labelKey, valueKey, formatValue) {
           .map((r) => {
             const pct = Math.max((r[valueKey] / max) * 100, 2);
             return `
-          <div class="flex h-full flex-1 flex-col items-center justify-end" title="${r[labelKey]}: ${formatValue(r[valueKey])}">
+          <div class="flex h-full flex-1 flex-col items-center justify-end" title="${esc(r[labelKey])}: ${formatValue(r[valueKey])}">
             <div class="w-full min-w-[2px] rounded-t-sm" style="height: ${pct}%; background: var(--viz-series-1)"></div>
           </div>
         `;
@@ -2423,7 +2436,7 @@ function renderVerticalBarChart(rows, labelKey, valueKey, formatValue) {
         ${rows
           .map(
             (r, i) =>
-              `<span class="flex-1 truncate text-center text-[10px]" style="color: var(--viz-text-muted)">${i % labelStep === 0 ? r[labelKey] : ""}</span>`
+              `<span class="flex-1 truncate text-center text-[10px]" style="color: var(--viz-text-muted)">${i % labelStep === 0 ? esc(r[labelKey]) : ""}</span>`
           )
           .join("")}
       </div>
@@ -2465,7 +2478,7 @@ async function loadReportSummary(params) {
   document.getElementById("report-owner-shortcuts").innerHTML = Object.values(ownerById)
     .map(
       (owner) => `
-      <a href="#settings/${owner.id}" class="rounded-md bg-white px-3 py-1.5 text-sm font-semibold text-gray-900 shadow-xs inset-ring inset-ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-gray-100 dark:inset-ring-white/5 dark:hover:bg-white/20">${owner.name}</a>
+      <a href="#settings/${owner.id}" class="rounded-md bg-white px-3 py-1.5 text-sm font-semibold text-gray-900 shadow-xs inset-ring inset-ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-gray-100 dark:inset-ring-white/5 dark:hover:bg-white/20">${esc(owner.name)}</a>
     `
     )
     .join("");
@@ -2515,7 +2528,7 @@ async function loadReportByCategory(params) {
     .map(
       (r) => `
       <tr>
-        <td class="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-gray-900 sm:pl-0 dark:text-white">${r.category ?? "sem categoria"}</td>
+        <td class="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-gray-900 sm:pl-0 dark:text-white">${esc(r.category) || "sem categoria"}</td>
         <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${r.count}</td>
         <td class="py-4 pr-4 pl-3 text-sm whitespace-nowrap text-gray-500 sm:pr-0 dark:text-gray-400">${currency.format(r.total_revenue)}</td>
       </tr>
@@ -2541,7 +2554,7 @@ async function loadReportTimeline(params) {
     .map(
       (r) => `
       <tr>
-        <td class="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-gray-900 sm:pl-0 dark:text-white">${r.period}</td>
+        <td class="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-gray-900 sm:pl-0 dark:text-white">${esc(r.period)}</td>
         <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${r.count}</td>
         <td class="py-4 pr-4 pl-3 text-sm whitespace-nowrap text-gray-500 sm:pr-0 dark:text-gray-400">${currency.format(r.total_revenue)}</td>
       </tr>
@@ -2620,8 +2633,8 @@ async function handleSubmit(event) {
     showAlert(
       "inventory-alert-slot",
       photoFailures > 0
-        ? `Peça ${item.sku} adicionada — ${photoFailures} foto(s) não puderam ser enviadas.`
-        : `Peça ${item.sku} adicionada.`,
+        ? `Peça ${esc(item.sku)} adicionada — ${photoFailures} foto(s) não puderam ser enviadas.`
+        : `Peça ${esc(item.sku)} adicionada.`,
       photoFailures > 0 ? "error" : "success"
     );
   } catch (err) {
@@ -2652,7 +2665,7 @@ async function handleSupplierSubmit(event) {
     await loadSuppliers();
     document.getElementById("supplier-drawer").close();
     setFormMessage("supplier-message", "", "");
-    showAlert("suppliers-alert-slot", `Fornecedora ${supplier.name} adicionada.`, "success");
+    showAlert("suppliers-alert-slot", `Fornecedora ${esc(supplier.name)} adicionada.`, "success");
   } catch (err) {
     setFormMessage("supplier-message", err.message, "error");
   }
