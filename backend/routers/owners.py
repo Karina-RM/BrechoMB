@@ -83,7 +83,7 @@ def _list_owner_payouts(conn, owner_id: int) -> list:
     side = _owner_side(conn, owner_id)
     rows = conn.execute(
         f"""
-        SELECT sales.id AS sale_id, items.sku, sales.sale_date,
+        SELECT sales.id AS sale_id, items.id AS item_id, items.sku, sales.sale_date,
                splits.owner_{side}_amount AS amount, splits.owner_{side}_paid_at AS paid_at
         FROM splits
         JOIN sales ON sales.id = splits.sale_id

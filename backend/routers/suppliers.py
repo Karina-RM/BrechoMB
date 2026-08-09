@@ -87,7 +87,7 @@ def get_supplier(supplier_id: int):
 
         payout_rows = conn.execute(
             """
-            SELECT sales.id AS sale_id, items.sku, sales.sale_date, sales.sale_price,
+            SELECT sales.id AS sale_id, items.id AS item_id, items.sku, sales.sale_date, sales.sale_price,
                    splits.supplier_amount, splits.paid_at
             FROM splits
             JOIN sales ON sales.id = splits.sale_id

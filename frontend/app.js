@@ -1554,7 +1554,7 @@ async function loadSales() {
       ? `<span class="text-gray-400 dark:text-gray-500">Estornada</span>`
       : `<button type="button" onclick="handleVoidSale(${sale.id})" class="text-pink-600 hover:text-pink-900 dark:text-pink-400 dark:hover:text-pink-300">Estornar</button>`;
     tr.innerHTML = `
-      <td class="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-gray-900 sm:pl-0 dark:text-white">${sale.sku}</td>
+      <td class="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap sm:pl-0"><a href="#items/${sale.item_id}" class="text-gray-900 hover:text-pink-600 dark:text-white dark:hover:text-pink-400">${sale.sku}</a></td>
       <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">#${sale.receipt_id}</td>
       <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${formatDate(sale.sale_date)}</td>
       <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${currency.format(sale.sale_price)}</td>
@@ -1725,7 +1725,7 @@ function renderSupplierPayoutsTable() {
           <td class="py-4 pr-3 pl-4 sm:pl-0">${
             p.paid_at ? "" : `<input type="checkbox" onchange="toggleSupplierPayoutSelection(${p.sale_id}, this.checked)" ${selectedSupplierPayoutSaleIds.has(p.sale_id) ? "checked" : ""} class="size-3.5 rounded border-gray-300 text-pink-600 focus:ring-pink-600 dark:border-white/20 dark:bg-white/10" />`
           }</td>
-          <td class="px-3 py-4 text-sm font-medium whitespace-nowrap text-gray-900 dark:text-white">${p.sku}</td>
+          <td class="px-3 py-4 text-sm font-medium whitespace-nowrap"><a href="#items/${p.item_id}" class="text-gray-900 hover:text-pink-600 dark:text-white dark:hover:text-pink-400">${p.sku}</a></td>
           <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${formatDate(p.sale_date)}</td>
           <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${currency.format(p.supplier_amount)}</td>
           <td class="px-3 py-4 text-sm whitespace-nowrap">${status}</td>
@@ -1858,7 +1858,7 @@ function renderOwnerPayoutsTable(ownerId) {
           <td class="py-4 pr-3 pl-4 sm:pl-0">${
             p.paid_at ? "" : `<input type="checkbox" onchange="toggleOwnerPayoutSelection(${ownerId}, ${p.sale_id}, this.checked)" ${selected.has(p.sale_id) ? "checked" : ""} class="size-3.5 rounded border-gray-300 text-pink-600 focus:ring-pink-600 dark:border-white/20 dark:bg-white/10" />`
           }</td>
-          <td class="px-3 py-4 text-sm font-medium whitespace-nowrap text-gray-900 dark:text-white">${p.sku}</td>
+          <td class="px-3 py-4 text-sm font-medium whitespace-nowrap"><a href="#items/${p.item_id}" class="text-gray-900 hover:text-pink-600 dark:text-white dark:hover:text-pink-400">${p.sku}</a></td>
           <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${formatDate(p.sale_date)}</td>
           <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${currency.format(p.amount)}</td>
           <td class="px-3 py-4 text-sm whitespace-nowrap">${status}</td>

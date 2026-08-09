@@ -62,6 +62,7 @@ class SupplierItemOut(BaseModel):
 
 class SupplierPayoutSaleOut(BaseModel):
     sale_id: int
+    item_id: int
     sku: str
     sale_date: str
     sale_price: float
@@ -77,6 +78,7 @@ class PayoutRequest(BaseModel):
 
 class OwnerPayoutSaleOut(BaseModel):
     sale_id: int
+    item_id: int
     sku: str
     sale_date: str
     amount: float
