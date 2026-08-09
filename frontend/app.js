@@ -153,6 +153,65 @@ function populateSelect(id, options, placeholder) {
   select.innerHTML = `<option value="">${placeholder}</option>` + options.map((o) => `<option value="${o}">${o}</option>`).join("");
 }
 
+// --- Split payments (a sale can be paid across 2-3 methods at once, e.g. part cash,
+// part card, part Pix) — shared between the cart checkout drawer and the single-item
+// quick-sell card, each of which keeps its own `rows` array of {method, amount}. -------
+
+function paymentRowsSum(rows) {
+  return rows.reduce((sum, r) => sum + (Number(parseDecimal(r.amount)) || 0), 0);
+}
+
+function paymentRowsHint(rows, target) {
+  // Checked before the sum, not just at submit time — otherwise a still-incomplete
+  // row (no method chosen yet, R$0) can coincidentally leave the sum matching and
+  // flash a false "confere" while the row genuinely isn't ready.
+  if (rows.length === 0 || rows.some((r) => !r.method || !(Number(parseDecimal(r.amount)) > 0))) {
+    return { text: "Preencha a forma e o valor de cada pagamento.", ok: false };
+  }
+  const diff = Math.round((target - paymentRowsSum(rows)) * 100) / 100;
+  if (Math.abs(diff) < 0.01) return { text: "Total dos pagamentos confere.", ok: true };
+  if (diff > 0) return { text: `Faltam ${currency.format(diff)} para completar o total.`, ok: false };
+  return { text: `Passou ${currency.format(-diff)} do total da venda.`, ok: false };
+}
+
+function paymentRowsValid(rows, target) {
+  return paymentRowsHint(rows, target).ok;
+}
+
+// `changeFn`/`removeFn` are the names of the caller's own state-mutating functions
+// (e.g. "setCartPaymentField") — plain global-function-by-name wiring, same pattern
+// already used for every other onclick/onchange in this file.
+function renderPaymentRowsInto(containerId, rows, changeFn, removeFn) {
+  const container = document.getElementById(containerId);
+  container.innerHTML = rows
+    .map(
+      (row, idx) => `
+      <div class="flex items-end gap-2">
+        <div class="grid flex-1 grid-cols-1">
+          <select id="${containerId}-method-${idx}" onchange="${changeFn}(${idx}, 'method', this.value)" class="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-gray-800"></select>
+        </div>
+        <input type="text" inputmode="decimal" value="${row.amount}" oninput="${changeFn}(${idx}, 'amount', this.value)" placeholder="0,00" class="block w-24 rounded-md bg-white px-2 py-1.5 text-sm text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 dark:bg-white/5 dark:text-white dark:outline-white/10" />
+        ${
+          rows.length > 1
+            ? `<button type="button" onclick="${removeFn}(${idx})" aria-label="Remover forma de pagamento" class="shrink-0 rounded-md p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400"><svg viewBox="0 0 20 20" fill="currentColor" class="size-5"><path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" /></svg></button>`
+            : ""
+        }
+      </div>
+    `
+    )
+    .join("");
+  rows.forEach((row, idx) => {
+    const selectId = `${containerId}-method-${idx}`;
+    populateSelect(selectId, PAYMENT_METHODS, "Forma de pagamento");
+    document.getElementById(selectId).value = row.method;
+  });
+}
+
+function formatPaymentMethods(paymentMethods) {
+  if (!paymentMethods || paymentMethods.length === 0) return "—";
+  return paymentMethods.map((p) => `${p.payment_method} (${currency.format(p.amount)})`).join(", ");
+}
+
 // prefix lets the item-detail edit form (§6.3) reuse this same cascade against its own
 // "edit-department"/"edit-category"/"edit-size" fields instead of duplicating the logic.
 //
@@ -226,14 +285,14 @@ const NAV_ITEMS = [
     path: `<path d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" stroke-linecap="round" stroke-linejoin="round" />`,
   },
   {
+    view: "settings",
+    label: "Proprietárias",
+    path: `<path d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+  {
     view: "reports",
     label: "Relatórios",
     path: `<path d="M10.5 6a7.5 7.5 0 1 0 7.5 7.5h-7.5V6Z" stroke-linecap="round" stroke-linejoin="round" /><path d="M13.5 10.5H21A7.5 7.5 0 0 0 13.5 3v7.5Z" stroke-linecap="round" stroke-linejoin="round" />`,
-  },
-  {
-    view: "settings",
-    label: "Configurações",
-    path: `<path d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 0 1 0 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.02-.397-1.11-.94l-.213-1.28c-.062-.374-.312-.687-.644-.87a6.52 6.52 0 0 1-.22-.128c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 0 1 0-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" stroke-linecap="round" stroke-linejoin="round" /><path d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" stroke-linecap="round" stroke-linejoin="round" />`,
   },
 ];
 
@@ -244,7 +303,7 @@ const VIEW_TITLES = {
   suppliers: "Fornecedoras",
   "supplier-detail": "Fornecedoras",
   reports: "Relatórios",
-  settings: "Configurações",
+  settings: "Proprietárias",
 };
 
 let assignmentLookup = {};
@@ -252,6 +311,8 @@ let ownerAName = "Dona A";
 let ownerBName = "Dona B";
 let ownerById = {};
 let currentSupplierDetailId = null;
+let currentSupplierPayoutSales = [];
+let selectedSupplierPayoutSaleIds = new Set();
 let currentItemDetailId = null;
 let currentItemDetailData = null;
 
@@ -265,11 +326,37 @@ function formatDate(sqliteTimestamp) {
 // without any visible error, so a field that looks filled submits as empty. These
 // currency/percentage fields are plain text inputs instead; this normalizes either
 // notation to a value Number()/parseFloat() can read. Returns "" if nothing usable.
+// Standard locale-ambiguous decimal parsing: since every price/percent field here
+// accepts free-form typing, "." can't be blindly treated as a BR thousands separator
+// — someone typing US-style "10.50" would silently become 1050 (a real bug this once
+// was). The rules, in order:
+//   1. Both "," and "." present → whichever comes LAST is the decimal point; the
+//      other is a thousands separator, stripped. Covers "1.234,56" and "1,234.56".
+//   2. One separator repeated (e.g. "1.234.567") → always thousands grouping.
+//   3. One separator, appearing once, followed by exactly 3 digits (e.g. "1.234")
+//      → thousands grouping — a price never legitimately has 3 decimal places, so a
+//      lone trailing group of exactly 3 is far more likely "one thousand, X hundred"
+//      than a fractional amount.
+//   4. Anything else (1-2 or 4+ digits after a lone separator) → decimal point.
 function parseDecimal(value) {
-  // Brazilian notation uses "." as the thousands separator and "," as the decimal
-  // point (e.g. "1.500,00") — strip the former before converting the latter, or a
-  // value like "1.500,00" becomes the unparseable "1.500.00".
-  const normalized = String(value ?? "").trim().replace(/\./g, "").replace(",", ".");
+  const raw = String(value ?? "").trim();
+  if (raw === "") return "";
+
+  const commaCount = (raw.match(/,/g) || []).length;
+  const dotCount = (raw.match(/\./g) || []).length;
+  let normalized;
+  if (commaCount > 0 && dotCount > 0) {
+    normalized = raw.lastIndexOf(",") > raw.lastIndexOf(".") ? raw.replace(/\./g, "").replace(",", ".") : raw.replace(/,/g, "");
+  } else if (commaCount > 1 || dotCount > 1) {
+    normalized = raw.replace(/[.,]/g, "");
+  } else if (commaCount === 1 || dotCount === 1) {
+    const sep = commaCount === 1 ? "," : ".";
+    const digitsAfter = raw.length - raw.lastIndexOf(sep) - 1;
+    normalized = digitsAfter === 3 ? raw.replace(sep, "") : raw.replace(sep, ".");
+  } else {
+    normalized = raw;
+  }
+
   return normalized === "" || Number.isNaN(Number(normalized)) ? "" : normalized;
 }
 
@@ -482,7 +569,7 @@ async function renderLockScreen(mode, ownerId, message, fromSettings) {
       </div>
       ${
         !isCreate && !fromSettings
-          ? `<p class="max-w-64 text-xs text-gray-400 dark:text-gray-500">Esqueceu o PIN? Clique em "Trocar", entre com o PIN da outra dona e redefina o seu em Configurações — não é preciso saber o PIN atual.</p>`
+          ? `<p class="max-w-64 text-xs text-gray-400 dark:text-gray-500">Esqueceu o PIN? Clique em "Trocar", entre com o PIN da outra dona e redefina o seu em Proprietárias — não é preciso saber o PIN atual.</p>`
           : ""
       }
     </div>
@@ -633,20 +720,100 @@ function resetInactivityTimer() {
   inactivityTimer = setTimeout(lockSession, INACTIVITY_MS);
 }
 
+// One dona's card (cadastro + repasses) shown at a time, picked via the selector
+// below — with many pending repasses, showing both stacked meant Dona B's whole
+// section could sit a long scroll below Dona A's table. The selector buttons mirror
+// the login screen's owner picker (same big pink pills), so the interaction is
+// already familiar rather than a new pattern to learn.
+let currentDonaId = null;
+let settingsOwnersCache = [];
+
 async function loadSettings() {
   const owners = await fetch("/api/owners").then((r) => r.json());
-  const container = document.getElementById("settings-owners");
-  container.innerHTML = owners
+  settingsOwnersCache = owners;
+  if (!owners.some((o) => o.id === currentDonaId)) {
+    currentDonaId = owners.some((o) => o.id === session.ownerId) ? session.ownerId : (owners[0]?.id ?? null);
+  }
+  renderDonaSelector();
+  await renderDonaDetail();
+}
+
+function renderDonaSelector() {
+  const container = document.getElementById("settings-dona-selector");
+  container.innerHTML = settingsOwnersCache
     .map(
       (o) => `
-    <div class="rounded-lg bg-white p-6 shadow-xs inset-ring inset-ring-gray-200 dark:bg-white/5 dark:inset-ring-white/10">
-      <h3 class="text-base font-semibold text-gray-900 dark:text-white">${o.name}</h3>
-      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">${o.has_pin ? "PIN já cadastrado" : "Nenhum PIN cadastrado ainda"}</p>
-      <button type="button" data-reset-pin="${o.id}" class="mt-4 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-xs inset-ring inset-ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-gray-100 dark:inset-ring-white/5 dark:hover:bg-white/20">Redefinir PIN</button>
-    </div>
-  `
+      <button type="button" onclick="selectDona(${o.id})" class="rounded-lg px-8 py-4 text-lg font-semibold shadow-xs ${
+        o.id === currentDonaId
+          ? "bg-pink-600 text-white hover:bg-pink-500 dark:bg-pink-500 dark:hover:bg-pink-400"
+          : "bg-white text-gray-900 inset-ring inset-ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-gray-100 dark:inset-ring-white/5 dark:hover:bg-white/20"
+      }">${o.name}</button>
+    `
     )
     .join("");
+}
+
+async function selectDona(ownerId) {
+  currentDonaId = ownerId;
+  renderDonaSelector();
+  await renderDonaDetail();
+}
+
+async function renderDonaDetail() {
+  const container = document.getElementById("dona-detail");
+  const owner = settingsOwnersCache.find((o) => o.id === currentDonaId);
+  if (!owner) {
+    container.innerHTML = "";
+    return;
+  }
+  container.innerHTML = `
+    <div class="rounded-lg bg-white p-6 shadow-xs inset-ring inset-ring-gray-200 dark:bg-white/5 dark:inset-ring-white/10">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">${owner.name}</h3>
+        <div class="text-right">
+          <p class="text-sm text-gray-500 dark:text-gray-400">${owner.has_pin ? "PIN já cadastrado" : "Nenhum PIN cadastrado ainda"}</p>
+          <button type="button" data-reset-pin="${owner.id}" class="mt-2 rounded-md bg-white px-3 py-1.5 text-sm font-semibold text-gray-900 shadow-xs inset-ring inset-ring-gray-300 hover:bg-gray-50 dark:bg-white/10 dark:text-gray-100 dark:inset-ring-white/5 dark:hover:bg-white/20">Redefinir PIN</button>
+        </div>
+      </div>
+
+      <div class="mt-8 flex flex-wrap items-center justify-between gap-3">
+        <h4 class="text-base font-semibold text-gray-900 dark:text-white">Repasses</h4>
+        <div class="flex items-center gap-3">
+          <button type="button" id="owner-payouts-register-selected-${owner.id}" onclick="handleRegisterSelectedOwnerPayouts(${owner.id})" hidden class="rounded-md bg-pink-600 px-3 py-2 text-sm font-semibold text-white shadow-xs hover:bg-pink-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600 dark:bg-pink-500 dark:hover:bg-pink-400">Registrar repasse dos selecionados</button>
+          <div class="grid grid-cols-1">
+            <select id="owner-payouts-status-filter-${owner.id}" onchange="renderOwnerPayoutsTable(${owner.id})" class="col-start-1 row-start-1 w-40 appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-gray-800">
+              <option value="">Todos os status</option>
+              <option value="pending">Pendente</option>
+              <option value="paid">Pago</option>
+            </select>
+            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" class="pointer-events-none col-start-1 row-start-1 mr-2 size-4 self-center justify-self-end text-gray-500 dark:text-gray-400">
+              <path d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" fill-rule="evenodd" />
+            </svg>
+          </div>
+        </div>
+      </div>
+      <div class="mt-4 flow-root">
+        <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
+          <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
+            <table class="min-w-full divide-y divide-gray-300 dark:divide-white/15">
+              <thead>
+                <tr>
+                  <th scope="col" class="py-3 pr-3 pl-4 sm:pl-0"><input type="checkbox" id="owner-payouts-select-all-${owner.id}" onchange="toggleAllOwnerPayoutSelection(${owner.id}, this.checked)" class="size-3.5 rounded border-gray-300 text-pink-600 focus:ring-pink-600 dark:border-white/20 dark:bg-white/10" /></th>
+                  <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">SKU</th>
+                  <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Data da venda</th>
+                  <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Comissão</th>
+                  <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Status</th>
+                  <th scope="col" class="py-3 pr-4 pl-3 sm:pr-0"><span class="sr-only">Ação</span></th>
+                </tr>
+              </thead>
+              <tbody id="owner-payouts-body-${owner.id}" class="divide-y divide-gray-200 bg-white dark:divide-white/10 dark:bg-gray-900"></tbody>
+            </table>
+            <p id="owner-payouts-empty-${owner.id}" hidden class="py-10 text-center text-sm text-gray-500 dark:text-gray-400">Nenhuma venda registrada ainda.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
 
   container.querySelectorAll("[data-reset-pin]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -655,6 +822,8 @@ async function loadSettings() {
       showLockScreen("create-pin", Number(btn.dataset.resetPin), true);
     });
   });
+
+  await loadOwnerPayouts(owner.id);
 }
 
 // --- Navigation / routing -------------------------------------------------
@@ -834,6 +1003,8 @@ let currentInventoryItems = [];
 let sellingItemId = null;
 let cartMode = false;
 let cart = {};
+let cartPayments = [];
+let sellPayments = [];
 // A card grid of ~500 photographed pieces is a lot of DOM/image weight at once — list
 // view (denser, thumbnail-sized) plus pagination are the standard mechanics for that.
 let inventoryView = localStorage.getItem("inventoryView") === "list" ? "list" : "grid";
@@ -922,7 +1093,7 @@ function renderInventoryGrid() {
     document.getElementById("inventory-list-body").innerHTML = pageItems.map(renderInventoryListRow).join("");
   }
   if (sellingItemId != null && pageItems.some((i) => i.id === sellingItemId)) {
-    populateSelect(`sell-payment-${sellingItemId}`, PAYMENT_METHODS, "Selecione a forma de pagamento");
+    renderSellPayments(sellingItemId);
   }
 
   pagination.hidden = totalPages <= 1;
@@ -1071,40 +1242,81 @@ function openCartDrawer() {
               </label>
             </div>
             <div>
-              <label for="cart-price-${itemId}" class="block text-xs font-medium text-gray-500 dark:text-gray-400">Preço de venda (R$)</label>
-              <input type="text" inputmode="decimal" id="cart-price-${itemId}" data-catalog-price="${item.price}" value="${String(entry.price).replace(".", ",")}" readonly class="mt-1 block w-full rounded-md bg-white px-2 py-1 text-sm font-semibold text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 read-only:cursor-not-allowed read-only:bg-gray-50 read-only:text-gray-500 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:read-only:bg-white/[0.02] dark:read-only:text-gray-400" />
+              <div class="flex items-center justify-between gap-2">
+                <label for="cart-price-${itemId}" class="block text-xs font-medium text-gray-500 dark:text-gray-400">Preço de venda (R$)</label>
+                <span class="text-xs text-gray-400 dark:text-gray-500">de tabela: ${currency.format(item.price)}</span>
+              </div>
+              <input type="text" inputmode="decimal" id="cart-price-${itemId}" data-catalog-price="${item.price}" value="${String(entry.price).replace(".", ",")}" oninput="updateCartPaymentHint()" readonly class="mt-1 block w-full rounded-md bg-white px-2 py-1 text-sm font-semibold text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 read-only:cursor-not-allowed read-only:bg-gray-50 read-only:text-gray-500 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:read-only:bg-white/[0.02] dark:read-only:text-gray-400" />
             </div>
-            <div>
+            <div id="cart-discount-wrapper-${itemId}" hidden>
               <label for="cart-discount-${itemId}" class="block text-xs font-medium text-gray-500 dark:text-gray-400">Motivo do desconto (opcional)</label>
-              <input type="text" id="cart-discount-${itemId}" value="${entry.discountReason}" disabled placeholder="ex: mancha encontrada na hora da venda" class="mt-1 block w-full rounded-md bg-white px-2 py-1 text-sm text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 disabled:bg-gray-50 disabled:text-gray-400 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:placeholder:text-gray-500 dark:disabled:bg-white/[0.02] dark:disabled:text-gray-500" />
+              <input type="text" id="cart-discount-${itemId}" value="${entry.discountReason}" placeholder="ex: mancha encontrada na hora da venda" class="mt-1 block w-full rounded-md bg-white px-2 py-1 text-sm text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:placeholder:text-gray-500" />
             </div>
           </div>
         </div>
       `;
     })
     .join("");
-  populateSelect("cart-payment-method", PAYMENT_METHODS, "Selecione a forma de pagamento");
+  cartPayments = [{ method: "", amount: cartTotal() > 0 ? String(cartTotal().toFixed(2)).replace(".", ",") : "" }];
+  renderCartPayments();
   setFormMessage("cart-message", "", "");
+}
+
+function cartTotal() {
+  return Object.keys(cart).reduce((sum, itemId) => {
+    const priceInput = document.getElementById(`cart-price-${itemId}`);
+    const price = priceInput ? Number(parseDecimal(priceInput.value)) || 0 : cart[itemId].price;
+    return sum + price;
+  }, 0);
+}
+
+function renderCartPayments() {
+  renderPaymentRowsInto("cart-payments-list", cartPayments, "setCartPaymentField", "removeCartPaymentRow");
+  updateCartPaymentHint();
+}
+
+function updateCartPaymentHint() {
+  const hint = paymentRowsHint(cartPayments, cartTotal());
+  const el = document.getElementById("cart-payment-hint");
+  el.textContent = hint.text;
+  el.className = `mt-1 text-xs ${hint.ok ? "text-green-600 dark:text-green-400" : "text-gray-500 dark:text-gray-400"}`;
+}
+
+function addCartPaymentRow() {
+  const remaining = Math.max(0, cartTotal() - paymentRowsSum(cartPayments));
+  cartPayments.push({ method: "", amount: remaining > 0 ? String(remaining.toFixed(2)).replace(".", ",") : "" });
+  renderCartPayments();
+}
+
+function removeCartPaymentRow(idx) {
+  cartPayments.splice(idx, 1);
+  renderCartPayments();
+}
+
+function setCartPaymentField(idx, field, value) {
+  cartPayments[idx][field] = value;
+  updateCartPaymentHint();
 }
 
 function toggleCartDiscount(itemId) {
   const checked = document.getElementById(`cart-discount-toggle-${itemId}`).checked;
   const priceInput = document.getElementById(`cart-price-${itemId}`);
   const reasonInput = document.getElementById(`cart-discount-${itemId}`);
+  document.getElementById(`cart-discount-wrapper-${itemId}`).hidden = !checked;
   priceInput.readOnly = !checked;
-  reasonInput.disabled = !checked;
   if (checked) {
     priceInput.focus();
   } else {
     priceInput.value = String(priceInput.dataset.catalogPrice).replace(".", ",");
     reasonInput.value = "";
   }
+  updateCartPaymentHint();
 }
 
 async function confirmCheckout() {
-  const paymentMethod = document.getElementById("cart-payment-method").value;
-  if (!paymentMethod) {
-    setFormMessage("cart-message", "selecione a forma de pagamento", "error");
+  const cartSaleTotal = cartTotal();
+  if (!paymentRowsValid(cartPayments, cartSaleTotal)) {
+    setFormMessage("cart-message", paymentRowsHint(cartPayments, cartSaleTotal).text, "error");
     return;
   }
 
@@ -1113,13 +1325,14 @@ async function confirmCheckout() {
     sale_price: Number(parseDecimal(document.getElementById(`cart-price-${itemId}`).value)),
     discount_reason: document.getElementById(`cart-discount-${itemId}`).value.trim() || null,
   }));
+  const payments = cartPayments.map((p) => ({ payment_method: p.method, amount: Number(parseDecimal(p.amount)) }));
 
   setFormMessage("cart-message", "Registrando…", "");
   try {
     const res = await fetch("/api/sales", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items, payment_method: paymentMethod, sold_by_owner_id: session.ownerId }),
+      body: JSON.stringify({ items, payments, sold_by_owner_id: session.ownerId }),
     });
     if (!res.ok) {
       const err = await res.json();
@@ -1128,6 +1341,7 @@ async function confirmCheckout() {
     const sales = await res.json();
     const total = sales.reduce((sum, s) => sum + s.sale_price, 0);
     cart = {};
+    cartPayments = [];
     cartMode = false;
     document.getElementById("cart-mode-toggle-label").textContent = "Modo carrinho";
     document.getElementById("cart-drawer").close();
@@ -1159,17 +1373,20 @@ function renderSellCard(item) {
               Dar desconto
             </label>
           </div>
-          <input type="text" inputmode="decimal" id="sell-price-${item.id}" data-catalog-price="${item.price}" value="${String(item.price).replace(".", ",")}" readonly class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-xl font-bold text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 read-only:cursor-not-allowed read-only:bg-gray-50 read-only:text-gray-500 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:read-only:bg-white/[0.02] dark:read-only:text-gray-400" />
+          <p class="text-xs text-gray-400 dark:text-gray-500">de tabela: ${currency.format(item.price)}</p>
+          <input type="text" inputmode="decimal" id="sell-price-${item.id}" data-catalog-price="${item.price}" value="${String(item.price).replace(".", ",")}" oninput="updateSellPaymentHint(${item.id})" readonly class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-xl font-bold text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 read-only:cursor-not-allowed read-only:bg-gray-50 read-only:text-gray-500 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:read-only:bg-white/[0.02] dark:read-only:text-gray-400" />
         </div>
         <div>
-          <label for="sell-payment-${item.id}" class="block text-xs font-medium text-gray-500 dark:text-gray-400">Forma de pagamento</label>
-          <div class="mt-1 grid grid-cols-1">
-            <select id="sell-payment-${item.id}" class="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white px-3 py-2 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-gray-800"></select>
+          <div class="flex items-center justify-between">
+            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400">Forma de pagamento</label>
+            <button type="button" onclick="addSellPaymentRow(${item.id})" class="text-xs font-semibold text-pink-600 hover:text-pink-500 dark:text-pink-400 dark:hover:text-pink-300">+ Adicionar</button>
           </div>
+          <div id="sell-payments-list-${item.id}" class="mt-1 space-y-2"></div>
+          <p id="sell-payment-hint-${item.id}" class="mt-1 text-xs text-gray-500 dark:text-gray-400"></p>
         </div>
-        <div>
+        <div id="sell-discount-wrapper-${item.id}" hidden>
           <label for="sell-discount-${item.id}" class="block text-xs font-medium text-gray-500 dark:text-gray-400">Motivo do desconto (opcional)</label>
-          <input type="text" id="sell-discount-${item.id}" disabled placeholder="ex: mancha encontrada na hora da venda" class="mt-1 block w-full rounded-md bg-white px-3 py-1.5 text-sm text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 disabled:bg-gray-50 disabled:text-gray-400 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:placeholder:text-gray-500 dark:disabled:bg-white/[0.02] dark:disabled:text-gray-500" />
+          <input type="text" id="sell-discount-${item.id}" placeholder="ex: mancha encontrada na hora da venda" class="mt-1 block w-full rounded-md bg-white px-3 py-1.5 text-sm text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:placeholder:text-gray-500" />
         </div>
         <p id="sell-message-${item.id}" class="text-sm"></p>
         <div class="flex gap-2">
@@ -1185,35 +1402,70 @@ function toggleSellDiscount(itemId) {
   const checked = document.getElementById(`sell-discount-toggle-${itemId}`).checked;
   const priceInput = document.getElementById(`sell-price-${itemId}`);
   const reasonInput = document.getElementById(`sell-discount-${itemId}`);
+  document.getElementById(`sell-discount-wrapper-${itemId}`).hidden = !checked;
   priceInput.readOnly = !checked;
-  reasonInput.disabled = !checked;
   if (checked) {
     priceInput.focus();
   } else {
     priceInput.value = String(priceInput.dataset.catalogPrice).replace(".", ",");
     reasonInput.value = "";
   }
+  updateSellPaymentHint(itemId);
 }
 
 function startSellCard(itemId) {
   sellingItemId = itemId;
+  const item = currentInventoryItems.find((i) => i.id === itemId);
+  sellPayments = [{ method: "", amount: item ? String(item.price.toFixed(2)).replace(".", ",") : "" }];
   renderInventoryGrid();
   document.getElementById(`sell-price-${itemId}`).focus();
 }
 
 function cancelSellCard(itemId) {
   sellingItemId = null;
+  sellPayments = [];
   renderInventoryGrid();
+}
+
+function renderSellPayments(itemId) {
+  renderPaymentRowsInto(`sell-payments-list-${itemId}`, sellPayments, "setSellPaymentField", "removeSellPaymentRow");
+  updateSellPaymentHint(itemId);
+}
+
+function removeSellPaymentRow(idx) {
+  sellPayments.splice(idx, 1);
+  renderSellPayments(sellingItemId);
+}
+
+function updateSellPaymentHint(itemId) {
+  const salePrice = Number(parseDecimal(document.getElementById(`sell-price-${itemId}`).value)) || 0;
+  const hint = paymentRowsHint(sellPayments, salePrice);
+  const el = document.getElementById(`sell-payment-hint-${itemId}`);
+  if (!el) return;
+  el.textContent = hint.text;
+  el.className = `mt-1 text-xs ${hint.ok ? "text-green-600 dark:text-green-400" : "text-gray-500 dark:text-gray-400"}`;
+}
+
+function addSellPaymentRow(itemId) {
+  const salePrice = Number(parseDecimal(document.getElementById(`sell-price-${itemId}`).value)) || 0;
+  const remaining = Math.max(0, salePrice - paymentRowsSum(sellPayments));
+  sellPayments.push({ method: "", amount: remaining > 0 ? String(remaining.toFixed(2)).replace(".", ",") : "" });
+  renderSellPayments(itemId);
+}
+
+function setSellPaymentField(idx, field, value) {
+  sellPayments[idx][field] = value;
+  updateSellPaymentHint(sellingItemId);
 }
 
 async function confirmSellCard(itemId) {
   const salePrice = Number(parseDecimal(document.getElementById(`sell-price-${itemId}`).value));
-  const paymentMethod = document.getElementById(`sell-payment-${itemId}`).value;
   const discountReason = document.getElementById(`sell-discount-${itemId}`).value.trim();
-  if (!paymentMethod) {
-    setFormMessage(`sell-message-${itemId}`, "selecione a forma de pagamento", "error");
+  if (!paymentRowsValid(sellPayments, salePrice)) {
+    setFormMessage(`sell-message-${itemId}`, paymentRowsHint(sellPayments, salePrice).text, "error");
     return;
   }
+  const payments = sellPayments.map((p) => ({ payment_method: p.method, amount: Number(parseDecimal(p.amount)) }));
 
   setFormMessage(`sell-message-${itemId}`, "Registrando…", "");
   try {
@@ -1222,7 +1474,7 @@ async function confirmSellCard(itemId) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         items: [{ item_id: itemId, sale_price: salePrice, discount_reason: discountReason || null }],
-        payment_method: paymentMethod,
+        payments,
         sold_by_owner_id: session.ownerId,
       }),
     });
@@ -1245,8 +1497,45 @@ async function confirmSellCard(itemId) {
   }
 }
 
+function handleSalesDatePresetChange() {
+  const preset = document.getElementById("sales-date-preset").value;
+  document.getElementById("sales-date-custom").hidden = preset !== "custom";
+  loadSales();
+}
+
+function getSalesFilterParams() {
+  const params = new URLSearchParams();
+  const preset = document.getElementById("sales-date-preset").value;
+  const today = new Date();
+  const iso = (d) => d.toISOString().slice(0, 10);
+  if (preset === "today") {
+    params.set("start_date", iso(today));
+    params.set("end_date", iso(today));
+  } else if (preset === "7d") {
+    const start = new Date(today);
+    start.setDate(start.getDate() - 6);
+    params.set("start_date", iso(start));
+    params.set("end_date", iso(today));
+  } else if (preset === "30d") {
+    const start = new Date(today);
+    start.setDate(start.getDate() - 29);
+    params.set("start_date", iso(start));
+    params.set("end_date", iso(today));
+  } else if (preset === "month") {
+    params.set("start_date", iso(new Date(today.getFullYear(), today.getMonth(), 1)));
+    params.set("end_date", iso(today));
+  } else if (preset === "custom") {
+    const start = document.getElementById("sales-start-date").value;
+    const end = document.getElementById("sales-end-date").value;
+    if (start) params.set("start_date", start);
+    if (end) params.set("end_date", end);
+  }
+  return params;
+}
+
 async function loadSales() {
-  const sales = await fetch("/api/sales").then((r) => r.json());
+  const params = getSalesFilterParams();
+  const sales = await fetch(`/api/sales?${params}`).then((r) => r.json());
 
   const body = document.getElementById("sales-body");
   const empty = document.getElementById("sales-empty");
@@ -1273,7 +1562,7 @@ async function loadSales() {
       <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${currency.format(sale.split.owner_b)}</td>
       <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${currency.format(sale.split.supplier)}</td>
       <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${sale.sold_by_owner_name ?? "—"}</td>
-      <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${sale.payment_method ?? "—"}</td>
+      <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${formatPaymentMethods(sale.payment_methods)}</td>
       <td class="py-4 pr-4 pl-3 text-sm font-medium whitespace-nowrap sm:pr-0">${action}</td>
     `;
     body.appendChild(tr);
@@ -1377,33 +1666,9 @@ async function showSupplierDetail(supplierId) {
         .join("")
     : `<tr><td colspan="4" class="py-10 text-center text-sm text-gray-500 dark:text-gray-400">Nenhuma peça fornecida ainda.</td></tr>`;
 
-  const payoutsBody = document.getElementById("supplier-payouts-body");
-  const payoutsEmpty = document.getElementById("supplier-payouts-empty");
-  payoutsBody.innerHTML = "";
-  if (supplier.payout_sales.length === 0) {
-    payoutsEmpty.hidden = false;
-  } else {
-    payoutsEmpty.hidden = true;
-    payoutsBody.innerHTML = supplier.payout_sales
-      .map((p) => {
-        const status = p.paid_at
-          ? `<span class="inline-flex items-center gap-x-1.5 rounded-md px-2 py-1 text-xs font-medium text-gray-900 inset-ring inset-ring-gray-200 dark:text-white dark:inset-ring-white/10">Pago em ${formatDate(p.paid_at)}</span>`
-          : `<span class="inline-flex items-center gap-x-1.5 rounded-md px-2 py-1 text-xs font-medium text-gray-900 inset-ring inset-ring-gray-200 dark:text-white dark:inset-ring-white/10">Pendente</span>`;
-        const action = p.paid_at
-          ? `<button type="button" onclick="handleTogglePayout(${p.sale_id}, true)" class="text-pink-600 hover:text-pink-900 dark:text-pink-400 dark:hover:text-pink-300">Desfazer</button>`
-          : `<button type="button" onclick="handleTogglePayout(${p.sale_id}, false)" class="text-pink-600 hover:text-pink-900 dark:text-pink-400 dark:hover:text-pink-300">Marcar como pago</button>`;
-        return `
-        <tr>
-          <td class="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-gray-900 sm:pl-0 dark:text-white">${p.sku}</td>
-          <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${formatDate(p.sale_date)}</td>
-          <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${currency.format(p.supplier_amount)}</td>
-          <td class="px-3 py-4 text-sm whitespace-nowrap">${status}</td>
-          <td class="py-4 pr-4 pl-3 text-sm font-medium whitespace-nowrap sm:pr-0">${action}</td>
-        </tr>
-      `;
-      })
-      .join("");
-  }
+  currentSupplierPayoutSales = supplier.payout_sales;
+  selectedSupplierPayoutSaleIds = new Set();
+  renderSupplierPayoutsTable();
 
   const withdrawalsBody = document.getElementById("supplier-withdrawals-body");
   const withdrawalsEmpty = document.getElementById("supplier-withdrawals-empty");
@@ -1427,12 +1692,108 @@ async function showSupplierDetail(supplierId) {
   }
 }
 
+// Shared by both the supplier payouts table and the two owner payout tables on
+// Relatórios — each keeps its own selection Set and list, but the filter/select/render
+// logic is identical, so it's factored out instead of tripled.
+function filterPayoutRows(rows, statusFilterId) {
+  const status = document.getElementById(statusFilterId).value;
+  if (status === "pending") return rows.filter((r) => !r.paid_at);
+  if (status === "paid") return rows.filter((r) => r.paid_at);
+  return rows;
+}
+
+function renderSupplierPayoutsTable() {
+  const payoutsBody = document.getElementById("supplier-payouts-body");
+  const payoutsEmpty = document.getElementById("supplier-payouts-empty");
+  const visible = filterPayoutRows(currentSupplierPayoutSales, "supplier-payouts-status-filter");
+
+  if (currentSupplierPayoutSales.length === 0) {
+    payoutsEmpty.hidden = false;
+    payoutsBody.innerHTML = "";
+  } else {
+    payoutsEmpty.hidden = true;
+    payoutsBody.innerHTML = visible
+      .map((p) => {
+        const status = p.paid_at
+          ? `<span class="inline-flex items-center gap-x-1.5 rounded-md px-2 py-1 text-xs font-medium text-gray-900 inset-ring inset-ring-gray-200 dark:text-white dark:inset-ring-white/10">Pago em ${formatDate(p.paid_at)}</span>`
+          : `<span class="inline-flex items-center gap-x-1.5 rounded-md px-2 py-1 text-xs font-medium text-gray-900 inset-ring inset-ring-gray-200 dark:text-white dark:inset-ring-white/10">Pendente</span>`;
+        const action = p.paid_at
+          ? `<button type="button" onclick="handleTogglePayout(${p.sale_id}, true)" class="text-pink-600 hover:text-pink-900 dark:text-pink-400 dark:hover:text-pink-300">Desfazer</button>`
+          : `<button type="button" onclick="handleTogglePayout(${p.sale_id}, false)" class="text-pink-600 hover:text-pink-900 dark:text-pink-400 dark:hover:text-pink-300">Marcar como pago</button>`;
+        return `
+        <tr>
+          <td class="py-4 pr-3 pl-4 sm:pl-0">${
+            p.paid_at ? "" : `<input type="checkbox" onchange="toggleSupplierPayoutSelection(${p.sale_id}, this.checked)" ${selectedSupplierPayoutSaleIds.has(p.sale_id) ? "checked" : ""} class="size-3.5 rounded border-gray-300 text-pink-600 focus:ring-pink-600 dark:border-white/20 dark:bg-white/10" />`
+          }</td>
+          <td class="px-3 py-4 text-sm font-medium whitespace-nowrap text-gray-900 dark:text-white">${p.sku}</td>
+          <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${formatDate(p.sale_date)}</td>
+          <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${currency.format(p.supplier_amount)}</td>
+          <td class="px-3 py-4 text-sm whitespace-nowrap">${status}</td>
+          <td class="py-4 pr-4 pl-3 text-sm font-medium whitespace-nowrap sm:pr-0">${action}</td>
+        </tr>
+      `;
+      })
+      .join("");
+  }
+
+  const selectAll = document.getElementById("supplier-payouts-select-all");
+  const pendingVisible = visible.filter((p) => !p.paid_at);
+  selectAll.checked = pendingVisible.length > 0 && pendingVisible.every((p) => selectedSupplierPayoutSaleIds.has(p.sale_id));
+  selectAll.disabled = pendingVisible.length === 0;
+
+  const registerButton = document.getElementById("supplier-payouts-register-selected");
+  registerButton.hidden = selectedSupplierPayoutSaleIds.size === 0;
+}
+
+function toggleSupplierPayoutSelection(saleId, checked) {
+  if (checked) selectedSupplierPayoutSaleIds.add(saleId);
+  else selectedSupplierPayoutSaleIds.delete(saleId);
+  renderSupplierPayoutsTable();
+}
+
+function toggleAllSupplierPayoutSelection(checked) {
+  const visible = filterPayoutRows(currentSupplierPayoutSales, "supplier-payouts-status-filter").filter((p) => !p.paid_at);
+  for (const p of visible) {
+    if (checked) selectedSupplierPayoutSaleIds.add(p.sale_id);
+    else selectedSupplierPayoutSaleIds.delete(p.sale_id);
+  }
+  renderSupplierPayoutsTable();
+}
+
+async function handleRegisterSelectedSupplierPayouts() {
+  const saleIds = [...selectedSupplierPayoutSaleIds];
+  if (saleIds.length === 0) return;
+  const total = currentSupplierPayoutSales
+    .filter((p) => saleIds.includes(p.sale_id))
+    .reduce((sum, p) => sum + p.supplier_amount, 0);
+  if (!confirm(`Registrar repasse de ${currency.format(total)} (${saleIds.length} venda${saleIds.length > 1 ? "s" : ""})?`)) return;
+  try {
+    const res = await fetch(`/api/suppliers/${currentSupplierDetailId}/payouts`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sale_ids: saleIds }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(describeApiError(err, "não foi possível registrar o repasse"));
+    }
+    await showSupplierDetail(currentSupplierDetailId);
+    showAlert("supplier-detail-alert-slot", "Repasse registrado.", "success");
+  } catch (err) {
+    showAlert("supplier-detail-alert-slot", err.message, "error");
+  }
+}
+
 async function handleRegisterPayout(supplierId) {
   const supplier = await fetch(`/api/suppliers/${supplierId}`).then((r) => r.json());
   if (supplier.total_owed <= 0) return;
   if (!confirm(`Registrar repasse de ${currency.format(supplier.total_owed)} para ${supplier.name}?`)) return;
   try {
-    const res = await fetch(`/api/suppliers/${supplierId}/payouts`, { method: "POST" });
+    const res = await fetch(`/api/suppliers/${supplierId}/payouts`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
     if (!res.ok) {
       const err = await res.json();
       throw new Error(describeApiError(err, "não foi possível registrar o repasse"));
@@ -1454,6 +1815,125 @@ async function handleTogglePayout(saleId, currentlyPaid) {
     if (currentSupplierDetailId) await showSupplierDetail(currentSupplierDetailId);
   } catch (err) {
     showAlert("supplier-detail-alert-slot", err.message, "error");
+  }
+}
+
+// --- Repasses às donas (página Donas) ----------------------------------------
+// Each owner gets her own table/selection state, scoped by ownerId in every element
+// id and function call — unlike the supplier table (one supplier at a time), both
+// owners' tables are visible on the page simultaneously.
+
+let ownerPayoutSalesByOwner = {};
+let selectedOwnerPayoutSaleIdsByOwner = {};
+
+async function loadOwnerPayouts(ownerId) {
+  const sales = await fetch(`/api/owners/${ownerId}/payouts`).then((r) => r.json());
+  ownerPayoutSalesByOwner[ownerId] = sales;
+  selectedOwnerPayoutSaleIdsByOwner[ownerId] = new Set();
+  renderOwnerPayoutsTable(ownerId);
+}
+
+function renderOwnerPayoutsTable(ownerId) {
+  const sales = ownerPayoutSalesByOwner[ownerId] || [];
+  const selected = selectedOwnerPayoutSaleIdsByOwner[ownerId] || new Set();
+  const body = document.getElementById(`owner-payouts-body-${ownerId}`);
+  const empty = document.getElementById(`owner-payouts-empty-${ownerId}`);
+  const visible = filterPayoutRows(sales, `owner-payouts-status-filter-${ownerId}`);
+
+  if (sales.length === 0) {
+    empty.hidden = false;
+    body.innerHTML = "";
+  } else {
+    empty.hidden = true;
+    body.innerHTML = visible
+      .map((p) => {
+        const status = p.paid_at
+          ? `<span class="inline-flex items-center gap-x-1.5 rounded-md px-2 py-1 text-xs font-medium text-gray-900 inset-ring inset-ring-gray-200 dark:text-white dark:inset-ring-white/10">Pago em ${formatDate(p.paid_at)}</span>`
+          : `<span class="inline-flex items-center gap-x-1.5 rounded-md px-2 py-1 text-xs font-medium text-gray-900 inset-ring inset-ring-gray-200 dark:text-white dark:inset-ring-white/10">Pendente</span>`;
+        const action = p.paid_at
+          ? `<button type="button" onclick="handleToggleOwnerPayout(${ownerId}, ${p.sale_id}, true)" class="text-pink-600 hover:text-pink-900 dark:text-pink-400 dark:hover:text-pink-300">Desfazer</button>`
+          : `<button type="button" onclick="handleToggleOwnerPayout(${ownerId}, ${p.sale_id}, false)" class="text-pink-600 hover:text-pink-900 dark:text-pink-400 dark:hover:text-pink-300">Marcar como pago</button>`;
+        return `
+        <tr>
+          <td class="py-4 pr-3 pl-4 sm:pl-0">${
+            p.paid_at ? "" : `<input type="checkbox" onchange="toggleOwnerPayoutSelection(${ownerId}, ${p.sale_id}, this.checked)" ${selected.has(p.sale_id) ? "checked" : ""} class="size-3.5 rounded border-gray-300 text-pink-600 focus:ring-pink-600 dark:border-white/20 dark:bg-white/10" />`
+          }</td>
+          <td class="px-3 py-4 text-sm font-medium whitespace-nowrap text-gray-900 dark:text-white">${p.sku}</td>
+          <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${formatDate(p.sale_date)}</td>
+          <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${currency.format(p.amount)}</td>
+          <td class="px-3 py-4 text-sm whitespace-nowrap">${status}</td>
+          <td class="py-4 pr-4 pl-3 text-sm font-medium whitespace-nowrap sm:pr-0">${action}</td>
+        </tr>
+      `;
+      })
+      .join("");
+  }
+
+  const selectAll = document.getElementById(`owner-payouts-select-all-${ownerId}`);
+  const pendingVisible = visible.filter((p) => !p.paid_at);
+  selectAll.checked = pendingVisible.length > 0 && pendingVisible.every((p) => selected.has(p.sale_id));
+  selectAll.disabled = pendingVisible.length === 0;
+
+  const registerButton = document.getElementById(`owner-payouts-register-selected-${ownerId}`);
+  registerButton.hidden = selected.size === 0;
+}
+
+function toggleOwnerPayoutSelection(ownerId, saleId, checked) {
+  const selected = selectedOwnerPayoutSaleIdsByOwner[ownerId];
+  if (checked) selected.add(saleId);
+  else selected.delete(saleId);
+  renderOwnerPayoutsTable(ownerId);
+}
+
+function toggleAllOwnerPayoutSelection(ownerId, checked) {
+  const visible = filterPayoutRows(ownerPayoutSalesByOwner[ownerId] || [], `owner-payouts-status-filter-${ownerId}`).filter(
+    (p) => !p.paid_at
+  );
+  const selected = selectedOwnerPayoutSaleIdsByOwner[ownerId];
+  for (const p of visible) {
+    if (checked) selected.add(p.sale_id);
+    else selected.delete(p.sale_id);
+  }
+  renderOwnerPayoutsTable(ownerId);
+}
+
+async function handleToggleOwnerPayout(ownerId, saleId, currentlyPaid) {
+  const side = ownerById[ownerId].is_cut_owner ? "a" : "b";
+  try {
+    const res = await fetch(`/api/sales/${saleId}/owner-payout/${side}/${currentlyPaid ? "mark-unpaid" : "mark-paid"}`, {
+      method: "POST",
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(describeApiError(err, "não foi possível atualizar o repasse"));
+    }
+    await loadOwnerPayouts(ownerId);
+  } catch (err) {
+    showAlert("settings-alert-slot", err.message, "error");
+  }
+}
+
+async function handleRegisterSelectedOwnerPayouts(ownerId) {
+  const saleIds = [...(selectedOwnerPayoutSaleIdsByOwner[ownerId] || [])];
+  if (saleIds.length === 0) return;
+  const total = (ownerPayoutSalesByOwner[ownerId] || [])
+    .filter((p) => saleIds.includes(p.sale_id))
+    .reduce((sum, p) => sum + p.amount, 0);
+  if (!confirm(`Registrar repasse de ${currency.format(total)} (${saleIds.length} venda${saleIds.length > 1 ? "s" : ""})?`)) return;
+  try {
+    const res = await fetch(`/api/owners/${ownerId}/payouts`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sale_ids: saleIds }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(describeApiError(err, "não foi possível registrar o repasse"));
+    }
+    await loadOwnerPayouts(ownerId);
+    showAlert("settings-alert-slot", "Repasse registrado.", "success");
+  } catch (err) {
+    showAlert("settings-alert-slot", err.message, "error");
   }
 }
 
@@ -1509,7 +1989,7 @@ async function showItemDetail(itemId) {
       ["Data da venda", formatDate(item.sale.sale_date)],
       ["Preço de venda", currency.format(item.sale.sale_price)],
       ["Vendida por", item.sale.sold_by_owner_name ?? "—"],
-      ["Forma de pagamento", item.sale.payment_method ?? "—"],
+      ["Forma de pagamento", formatPaymentMethods(item.sale.payment_methods)],
       ...(item.sale.discount_reason ? [["Motivo do desconto", item.sale.discount_reason]] : []),
       [ownerAName, currency.format(item.sale.split.owner_a)],
       [ownerBName, currency.format(item.sale.split.owner_b)],
@@ -2086,6 +2566,9 @@ document.getElementById("department").addEventListener("change", (e) => updateCa
 document.getElementById("category").addEventListener("change", (e) => updateSizeField(document.getElementById("department").value, e.target.value));
 document.getElementById("supplier-form").addEventListener("submit", handleSupplierSubmit);
 document.getElementById("timeline-granularity").addEventListener("change", () => loadReportTimeline(getReportFilterParams()));
+document.getElementById("sales-date-preset").addEventListener("change", handleSalesDatePresetChange);
+document.getElementById("sales-start-date").addEventListener("change", loadSales);
+document.getElementById("sales-end-date").addEventListener("change", loadSales);
 document.getElementById("report-date-preset").addEventListener("change", handleReportDatePresetChange);
 document.getElementById("report-start-date").addEventListener("change", loadReports);
 document.getElementById("report-end-date").addEventListener("change", loadReports);

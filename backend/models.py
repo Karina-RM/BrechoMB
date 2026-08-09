@@ -41,9 +41,18 @@ CREATE TABLE IF NOT EXISTS items (
 
 CREATE TABLE IF NOT EXISTS receipts (
     id INTEGER PRIMARY KEY,
-    payment_method TEXT,
     sold_by_owner_id INTEGER REFERENCES owners(id),
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- A receipt's total can be split across 2-3 payment methods (e.g. part cash, part
+-- card, part Pix) — one row per method actually used, instead of a single scalar
+-- payment_method column on receipts.
+CREATE TABLE IF NOT EXISTS receipt_payments (
+    id INTEGER PRIMARY KEY,
+    receipt_id INTEGER NOT NULL REFERENCES receipts(id),
+    payment_method TEXT NOT NULL,
+    amount REAL NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS sales (
@@ -64,7 +73,9 @@ CREATE TABLE IF NOT EXISTS splits (
     owner_b_amount REAL NOT NULL,
     supplier_id INTEGER REFERENCES suppliers(id),
     supplier_amount REAL NOT NULL DEFAULT 0,
-    paid_at TEXT
+    paid_at TEXT,
+    owner_a_paid_at TEXT,
+    owner_b_paid_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS withdrawals (
@@ -230,6 +241,15 @@ def migrate_schema(conn: sqlite3.Connection) -> None:
     if "paid_at" not in existing_splits:
         conn.execute("ALTER TABLE splits ADD COLUMN paid_at TEXT")
 
+    # Owner payouts (repasses às donas) mirror the supplier payout column above — each
+    # owner's cut of a sale can be marked paid independently of the other's, since a
+    # single side-B sale splits proceeds between both owners at once (see splits.py).
+    existing_splits_now = {row["name"] for row in conn.execute("PRAGMA table_info(splits)")}
+    if "owner_a_paid_at" not in existing_splits_now:
+        conn.execute("ALTER TABLE splits ADD COLUMN owner_a_paid_at TEXT")
+    if "owner_b_paid_at" not in existing_splits_now:
+        conn.execute("ALTER TABLE splits ADD COLUMN owner_b_paid_at TEXT")
+
     # sales.item_id used to be a plain UNIQUE column — refunds need it relaxed to "at
     # most one active sale per item" (see the partial index below), which SQLite can't
     # express via ALTER TABLE, so existing databases get a one-time table rebuild here.
@@ -309,6 +329,48 @@ def migrate_schema(conn: sqlite3.Connection) -> None:
                 ),
             )
         conn.execute("DROP TABLE sales_old")
+        conn.execute("PRAGMA foreign_keys = ON")
+
+    # A receipt's total can now be split across multiple payment methods, stored as
+    # rows in receipt_payments instead of a single scalar column on receipts — same
+    # rebuild SQLite forces for any column drop. Existing receipts get backfilled into
+    # one receipt_payments row apiece (amount = their sales' total) before the column
+    # is dropped, so historical sales keep showing what was actually paid.
+    existing_receipts = {row["name"] for row in conn.execute("PRAGMA table_info(receipts)")}
+    if "payment_method" in existing_receipts:
+        for row in conn.execute("SELECT id, payment_method FROM receipts").fetchall():
+            if row["payment_method"] is None:
+                continue
+            total = conn.execute(
+                "SELECT COALESCE(SUM(sale_price), 0) AS total FROM sales WHERE receipt_id = ?", (row["id"],)
+            ).fetchone()["total"]
+            conn.execute(
+                "INSERT INTO receipt_payments (receipt_id, payment_method, amount) VALUES (?, ?, ?)",
+                (row["id"], row["payment_method"], total),
+            )
+
+        # foreign_keys can only be toggled outside a transaction — the backfill INSERTs
+        # above opened an implicit one, so this commit is required or the OFF below
+        # silently no-ops and the DROP TABLE later fails on receipt_payments' FK.
+        conn.commit()
+        conn.execute("PRAGMA foreign_keys = OFF")
+        conn.execute("ALTER TABLE receipts RENAME TO receipts_old")
+        conn.execute(
+            """
+            CREATE TABLE receipts (
+                id INTEGER PRIMARY KEY,
+                sold_by_owner_id INTEGER REFERENCES owners(id),
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO receipts (id, sold_by_owner_id, created_at)
+            SELECT id, sold_by_owner_id, created_at FROM receipts_old
+            """
+        )
+        conn.execute("DROP TABLE receipts_old")
         conn.execute("PRAGMA foreign_keys = ON")
 
     # Created here rather than in SCHEMA: on an existing (not-yet-rebuilt) database,

@@ -18,7 +18,7 @@ from backend.enums import (
     ItemSize,
     ShoeSize,
 )
-from backend.routers.sales import SALE_SELECT, _row_to_sale
+from backend.routers.sales import SALE_SELECT, _payments_by_receipt, _row_to_sale
 from backend.schemas import ItemDetailOut, ItemOut, ItemUpdate
 
 router = APIRouter(prefix="/api/items", tags=["items"])
@@ -193,7 +193,11 @@ def get_item(item_id: int):
         sale_row = conn.execute(
             SALE_SELECT + " WHERE sales.item_id = ? ORDER BY sales.id DESC LIMIT 1", (item_id,)
         ).fetchone()
-        detail["sale"] = _row_to_sale(sale_row) if sale_row else None
+        if sale_row:
+            payments_by_receipt = _payments_by_receipt(conn, [sale_row["receipt_id"]])
+            detail["sale"] = _row_to_sale(sale_row, payments_by_receipt)
+        else:
+            detail["sale"] = None
 
         withdrawal_row = conn.execute(
             "SELECT withdrawn_date FROM withdrawals WHERE item_id = ? ORDER BY withdrawn_date DESC LIMIT 1",

@@ -4,7 +4,7 @@ from typing import List
 from fastapi import APIRouter, HTTPException
 
 from backend.db import get_connection
-from backend.schemas import SupplierCreate, SupplierDetailOut, SupplierOut, SupplierUpdate
+from backend.schemas import PayoutRequest, SupplierCreate, SupplierDetailOut, SupplierOut, SupplierUpdate
 
 router = APIRouter(prefix="/api/suppliers", tags=["suppliers"])
 
@@ -138,21 +138,33 @@ def get_supplier(supplier_id: int):
 
 
 @router.post("/{supplier_id}/payouts", response_model=SupplierDetailOut)
-def register_payout(supplier_id: int):
+def register_payout(supplier_id: int, payload: PayoutRequest = PayoutRequest()):
     conn = get_connection()
     try:
         supplier = conn.execute("SELECT * FROM suppliers WHERE id = ?", (supplier_id,)).fetchone()
         if supplier is None:
             raise HTTPException(404, "fornecedora não encontrada")
 
-        conn.execute(
-            """
-            UPDATE splits SET paid_at = CURRENT_TIMESTAMP
-            WHERE supplier_id = ? AND paid_at IS NULL
-              AND sale_id IN (SELECT id FROM sales WHERE voided_at IS NULL)
-            """,
-            (supplier_id,),
-        )
+        if payload.sale_ids:
+            placeholders = ",".join("?" * len(payload.sale_ids))
+            conn.execute(
+                f"""
+                UPDATE splits SET paid_at = CURRENT_TIMESTAMP
+                WHERE supplier_id = ? AND paid_at IS NULL
+                  AND sale_id IN ({placeholders})
+                  AND sale_id IN (SELECT id FROM sales WHERE voided_at IS NULL)
+                """,
+                (supplier_id, *payload.sale_ids),
+            )
+        else:
+            conn.execute(
+                """
+                UPDATE splits SET paid_at = CURRENT_TIMESTAMP
+                WHERE supplier_id = ? AND paid_at IS NULL
+                  AND sale_id IN (SELECT id FROM sales WHERE voided_at IS NULL)
+                """,
+                (supplier_id,),
+            )
         conn.commit()
     finally:
         conn.close()

@@ -201,6 +201,27 @@
 
           <div id="sales-alert-slot" class="mt-4"></div>
 
+          <div class="mt-6 flex flex-wrap items-center gap-3">
+            <div class="grid grid-cols-1">
+              <select id="sales-date-preset" class="col-start-1 row-start-1 w-44 appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-gray-800">
+                <option value="all">Todo período</option>
+                <option value="today">Hoje</option>
+                <option value="7d">Últimos 7 dias</option>
+                <option value="30d">Últimos 30 dias</option>
+                <option value="month">Este mês</option>
+                <option value="custom">Personalizado</option>
+              </select>
+              <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" class="pointer-events-none col-start-1 row-start-1 mr-2 size-4 self-center justify-self-end text-gray-500 dark:text-gray-400">
+                <path d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" fill-rule="evenodd" />
+              </svg>
+            </div>
+            <div id="sales-date-custom" hidden class="flex items-center gap-2">
+              <input type="date" id="sales-start-date" class="rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10" />
+              <span class="text-sm text-gray-500 dark:text-gray-400">até</span>
+              <input type="date" id="sales-end-date" class="rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10" />
+            </div>
+          </div>
+
           <div class="mt-6 flow-root">
             <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
               <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
@@ -306,14 +327,30 @@
             </div>
           </div>
 
-          <h3 class="mt-10 text-base font-semibold text-gray-900 dark:text-white">Vendas e repasses</h3>
+          <div class="mt-10 flex flex-wrap items-center justify-between gap-3">
+            <h3 class="text-base font-semibold text-gray-900 dark:text-white">Vendas e repasses</h3>
+            <div class="flex items-center gap-3">
+              <button type="button" id="supplier-payouts-register-selected" onclick="handleRegisterSelectedSupplierPayouts()" hidden class="rounded-md bg-pink-600 px-3 py-2 text-sm font-semibold text-white shadow-xs hover:bg-pink-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600 dark:bg-pink-500 dark:hover:bg-pink-400">Registrar repasse dos selecionados</button>
+              <div class="grid grid-cols-1">
+                <select id="supplier-payouts-status-filter" onchange="renderSupplierPayoutsTable()" class="col-start-1 row-start-1 w-40 appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-gray-800">
+                  <option value="">Todos os status</option>
+                  <option value="pending">Pendente</option>
+                  <option value="paid">Pago</option>
+                </select>
+                <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" class="pointer-events-none col-start-1 row-start-1 mr-2 size-4 self-center justify-self-end text-gray-500 dark:text-gray-400">
+                  <path d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" fill-rule="evenodd" />
+                </svg>
+              </div>
+            </div>
+          </div>
           <div class="mt-4 flow-root">
             <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
               <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
                 <table class="min-w-full divide-y divide-gray-300 dark:divide-white/15">
                   <thead>
                     <tr>
-                      <th scope="col" class="py-3 pr-3 pl-4 text-left text-xs font-medium tracking-wide text-gray-500 uppercase sm:pl-0 dark:text-gray-400">SKU</th>
+                      <th scope="col" class="py-3 pr-3 pl-4 sm:pl-0"><input type="checkbox" id="supplier-payouts-select-all" onchange="toggleAllSupplierPayoutSelection(this.checked)" class="size-3.5 rounded border-gray-300 text-pink-600 focus:ring-pink-600 dark:border-white/20 dark:bg-white/10" /></th>
+                      <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">SKU</th>
                       <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Data da venda</th>
                       <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Comissão</th>
                       <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Status</th>
@@ -533,12 +570,13 @@
           </div>
         </section>
 
-        <!-- CONFIGURAÇÕES -->
+        <!-- PROPRIETÁRIAS -->
         <section data-view="settings" hidden>
-          <h2 class="text-2xl/7 font-bold text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight dark:text-white">Configurações</h2>
-          <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">Cada dona pode redefinir o próprio PIN aqui — e, se uma esquecer o dela, a outra pode redefini-lo por ela.</p>
+          <h2 class="text-2xl/7 font-bold text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight dark:text-white">Proprietárias</h2>
+          <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">PIN e repasses de cada dona — cada uma pode redefinir o próprio PIN aqui, e se uma esquecer o dela, a outra pode redefini-lo por ela.</p>
           <div id="settings-alert-slot" class="mt-4"></div>
-          <div id="settings-owners" class="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2"></div>
+          <div id="settings-dona-selector" class="mt-6 flex flex-wrap gap-4"></div>
+          <div id="dona-detail" class="mt-6"></div>
         </section>
 
       </div>
@@ -678,10 +716,12 @@
                 <div class="space-y-6 px-4 pt-6 pb-5 sm:px-6">
                   <div id="cart-drawer-items" class="space-y-4"></div>
                   <div>
-                    <label for="cart-payment-method" class="block text-sm/6 font-medium text-gray-900 dark:text-gray-100">Forma de pagamento</label>
-                    <div class="mt-2 grid grid-cols-1">
-                      <select id="cart-payment-method" class="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-gray-800"></select>
+                    <div class="flex items-center justify-between">
+                      <label class="block text-sm/6 font-medium text-gray-900 dark:text-gray-100">Forma de pagamento</label>
+                      <button type="button" onclick="addCartPaymentRow()" class="text-xs font-semibold text-pink-600 hover:text-pink-500 dark:text-pink-400 dark:hover:text-pink-300">+ Adicionar forma de pagamento</button>
                     </div>
+                    <div id="cart-payments-list" class="mt-2 space-y-2"></div>
+                    <p id="cart-payment-hint" class="mt-1 text-xs text-gray-500 dark:text-gray-400"></p>
                   </div>
                   <p id="cart-message" class="text-sm"></p>
                 </div>

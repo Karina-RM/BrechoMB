@@ -3,7 +3,7 @@ from typing import List
 from fastapi import APIRouter, HTTPException
 
 from backend.db import get_connection
-from backend.schemas import OwnerOut, OwnerUpdate, PinVerify
+from backend.schemas import OwnerOut, OwnerPayoutSaleOut, OwnerUpdate, PayoutRequest, PinVerify
 
 router = APIRouter(prefix="/api/owners", tags=["owners"])
 
@@ -68,5 +68,68 @@ def verify_pin(owner_id: int, payload: PinVerify):
         if payload.pin != row["pin"]:
             raise HTTPException(401, "PIN incorreto")
         return {"ok": True}
+    finally:
+        conn.close()
+
+
+def _owner_side(conn, owner_id: int) -> str:
+    owner = conn.execute("SELECT is_cut_owner FROM owners WHERE id = ?", (owner_id,)).fetchone()
+    if owner is None:
+        raise HTTPException(404, "proprietária não encontrada")
+    return "a" if owner["is_cut_owner"] else "b"
+
+
+def _list_owner_payouts(conn, owner_id: int) -> list:
+    side = _owner_side(conn, owner_id)
+    rows = conn.execute(
+        f"""
+        SELECT sales.id AS sale_id, items.sku, sales.sale_date,
+               splits.owner_{side}_amount AS amount, splits.owner_{side}_paid_at AS paid_at
+        FROM splits
+        JOIN sales ON sales.id = splits.sale_id
+        JOIN items ON items.id = sales.item_id
+        WHERE sales.voided_at IS NULL AND splits.owner_{side}_amount > 0
+        ORDER BY sales.sale_date DESC
+        """
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+@router.get("/{owner_id}/payouts", response_model=List[OwnerPayoutSaleOut])
+def list_owner_payouts(owner_id: int):
+    conn = get_connection()
+    try:
+        return _list_owner_payouts(conn, owner_id)
+    finally:
+        conn.close()
+
+
+@router.post("/{owner_id}/payouts", response_model=List[OwnerPayoutSaleOut])
+def register_owner_payout(owner_id: int, payload: PayoutRequest = PayoutRequest()):
+    conn = get_connection()
+    try:
+        side = _owner_side(conn, owner_id)
+
+        if payload.sale_ids:
+            placeholders = ",".join("?" * len(payload.sale_ids))
+            conn.execute(
+                f"""
+                UPDATE splits SET owner_{side}_paid_at = CURRENT_TIMESTAMP
+                WHERE owner_{side}_paid_at IS NULL AND owner_{side}_amount > 0
+                  AND sale_id IN ({placeholders})
+                  AND sale_id IN (SELECT id FROM sales WHERE voided_at IS NULL)
+                """,
+                payload.sale_ids,
+            )
+        else:
+            conn.execute(
+                f"""
+                UPDATE splits SET owner_{side}_paid_at = CURRENT_TIMESTAMP
+                WHERE owner_{side}_paid_at IS NULL AND owner_{side}_amount > 0
+                  AND sale_id IN (SELECT id FROM sales WHERE voided_at IS NULL)
+                """
+            )
+        conn.commit()
+        return _list_owner_payouts(conn, owner_id)
     finally:
         conn.close()

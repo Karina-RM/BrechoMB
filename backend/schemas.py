@@ -69,6 +69,20 @@ class SupplierPayoutSaleOut(BaseModel):
     paid_at: Optional[str]
 
 
+class PayoutRequest(BaseModel):
+    # Omitted/empty means "everything currently unpaid" — same endpoint covers both
+    # the one-click "pay everything" action and a specific multi-select.
+    sale_ids: Optional[List[int]] = None
+
+
+class OwnerPayoutSaleOut(BaseModel):
+    sale_id: int
+    sku: str
+    sale_date: str
+    amount: float
+    paid_at: Optional[str]
+
+
 class SupplierWithdrawalOut(BaseModel):
     sku: str
     intake_date: str
@@ -134,9 +148,14 @@ class CheckoutItem(BaseModel):
     discount_reason: Optional[str] = None
 
 
+class PaymentSplitIn(BaseModel):
+    payment_method: PaymentMethod
+    amount: float
+
+
 class CheckoutCreate(BaseModel):
     items: List[CheckoutItem]
-    payment_method: PaymentMethod
+    payments: List[PaymentSplitIn]
     sold_by_owner_id: int
 
 
@@ -144,6 +163,11 @@ class SplitOut(BaseModel):
     owner_a: float
     owner_b: float
     supplier: float
+
+
+class PaymentSplitOut(BaseModel):
+    payment_method: str
+    amount: float
 
 
 class SaleOut(BaseModel):
@@ -154,7 +178,7 @@ class SaleOut(BaseModel):
     catalog_price: float
     discount_reason: Optional[str]
     receipt_id: int
-    payment_method: Optional[str]
+    payment_methods: List[PaymentSplitOut]
     sold_by_owner_name: Optional[str]
     sale_date: str
     voided_at: Optional[str]

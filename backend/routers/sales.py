@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException
 
@@ -10,7 +10,7 @@ from backend.splits import calculate_split
 router = APIRouter(prefix="/api/sales", tags=["sales"])
 
 
-def _row_to_sale(row) -> dict:
+def _row_to_sale(row, payments_by_receipt) -> dict:
     data = dict(row)
     return {
         "id": data["id"],
@@ -20,7 +20,7 @@ def _row_to_sale(row) -> dict:
         "catalog_price": data["catalog_price"],
         "discount_reason": data["discount_reason"],
         "receipt_id": data["receipt_id"],
-        "payment_method": data["payment_method"],
+        "payment_methods": payments_by_receipt.get(data["receipt_id"], []),
         "sold_by_owner_name": data["sold_by_owner_name"],
         "sale_date": data["sale_date"],
         "voided_at": data["voided_at"],
@@ -36,7 +36,6 @@ SALE_SELECT = """
     SELECT sales.id, sales.item_id, sales.sale_price, sales.catalog_price, sales.discount_reason,
            sales.receipt_id, sales.sale_date, sales.voided_at,
            items.sku,
-           receipts.payment_method,
            sold_by.name AS sold_by_owner_name,
            splits.owner_a_amount, splits.owner_b_amount, splits.supplier_amount
     FROM sales
@@ -47,6 +46,27 @@ SALE_SELECT = """
 """
 
 
+def _payments_by_receipt(conn, receipt_ids) -> dict:
+    """One row per sale's receipt can carry several payment methods — fetched
+    separately (rather than joined into SALE_SELECT) so a 3-way split doesn't
+    multiply that sale into 3 rows."""
+    receipt_ids = list({r for r in receipt_ids})
+    if not receipt_ids:
+        return {}
+    rows = conn.execute(
+        f"""
+        SELECT receipt_id, payment_method, amount FROM receipt_payments
+        WHERE receipt_id IN ({','.join('?' * len(receipt_ids))})
+        ORDER BY id
+        """,
+        receipt_ids,
+    ).fetchall()
+    result: dict = {}
+    for r in rows:
+        result.setdefault(r["receipt_id"], []).append({"payment_method": r["payment_method"], "amount": r["amount"]})
+    return result
+
+
 @router.post("", response_model=List[SaleOut])
 def checkout(payload: CheckoutCreate):
     if not payload.items:
@@ -55,6 +75,16 @@ def checkout(payload: CheckoutCreate):
         if entry.sale_price <= 0:
             raise HTTPException(400, "o preço de venda deve ser maior que zero")
 
+    if not payload.payments:
+        raise HTTPException(400, "informe ao menos uma forma de pagamento")
+    for payment in payload.payments:
+        if payment.amount <= 0:
+            raise HTTPException(400, "o valor de cada pagamento deve ser maior que zero")
+    items_total = sum(entry.sale_price for entry in payload.items)
+    payments_total = sum(payment.amount for payment in payload.payments)
+    if abs(items_total - payments_total) > 0.01:
+        raise HTTPException(400, "a soma das formas de pagamento deve ser igual ao total da venda")
+
     conn = get_connection()
     try:
         seller = conn.execute("SELECT id FROM owners WHERE id = ?", (payload.sold_by_owner_id,)).fetchone()
@@ -62,10 +92,15 @@ def checkout(payload: CheckoutCreate):
             raise HTTPException(400, "proprietária que registrou a venda não encontrada")
 
         receipt_cur = conn.execute(
-            "INSERT INTO receipts (payment_method, sold_by_owner_id) VALUES (?, ?)",
-            (payload.payment_method, payload.sold_by_owner_id),
+            "INSERT INTO receipts (sold_by_owner_id) VALUES (?)",
+            (payload.sold_by_owner_id,),
         )
         receipt_id = receipt_cur.lastrowid
+        for payment in payload.payments:
+            conn.execute(
+                "INSERT INTO receipt_payments (receipt_id, payment_method, amount) VALUES (?, ?, ?)",
+                (receipt_id, payment.payment_method, payment.amount),
+            )
 
         sale_ids = []
         for entry in payload.items:
@@ -117,17 +152,29 @@ def checkout(payload: CheckoutCreate):
                 SALE_SELECT + f" WHERE sales.id IN ({','.join('?' * len(sale_ids))})", sale_ids
             ).fetchall()
         }
-        return [_row_to_sale(rows_by_id[sid]) for sid in sale_ids]
+        payments_by_receipt = _payments_by_receipt(conn, (r["receipt_id"] for r in rows_by_id.values()))
+        return [_row_to_sale(rows_by_id[sid], payments_by_receipt) for sid in sale_ids]
     finally:
         conn.close()
 
 
 @router.get("", response_model=List[SaleOut])
-def list_sales():
+def list_sales(start_date: Optional[str] = None, end_date: Optional[str] = None):
     conn = get_connection()
     try:
-        rows = conn.execute(SALE_SELECT + " ORDER BY sales.sale_date DESC").fetchall()
-        return [_row_to_sale(r) for r in rows]
+        clauses = []
+        params: list = []
+        if start_date:
+            clauses.append("date(sales.sale_date) >= date(?)")
+            params.append(start_date)
+        if end_date:
+            clauses.append("date(sales.sale_date) <= date(?)")
+            params.append(end_date)
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+
+        rows = conn.execute(SALE_SELECT + f" {where} ORDER BY sales.sale_date DESC", params).fetchall()
+        payments_by_receipt = _payments_by_receipt(conn, (r["receipt_id"] for r in rows))
+        return [_row_to_sale(r, payments_by_receipt) for r in rows]
     finally:
         conn.close()
 
@@ -147,7 +194,8 @@ def void_sale(sale_id: int):
         conn.commit()
 
         row = conn.execute(SALE_SELECT + " WHERE sales.id = ?", (sale_id,)).fetchone()
-        return _row_to_sale(row)
+        payments_by_receipt = _payments_by_receipt(conn, [row["receipt_id"]])
+        return _row_to_sale(row, payments_by_receipt)
     finally:
         conn.close()
 
@@ -168,7 +216,8 @@ def _set_payout_paid(sale_id: int, paid: bool) -> dict:
         conn.commit()
 
         row = conn.execute(SALE_SELECT + " WHERE sales.id = ?", (sale_id,)).fetchone()
-        return _row_to_sale(row)
+        payments_by_receipt = _payments_by_receipt(conn, [row["receipt_id"]])
+        return _row_to_sale(row, payments_by_receipt)
     finally:
         conn.close()
 
@@ -181,3 +230,39 @@ def mark_payout_paid(sale_id: int):
 @router.post("/{sale_id}/payout/mark-unpaid", response_model=SaleOut)
 def mark_payout_unpaid(sale_id: int):
     return _set_payout_paid(sale_id, False)
+
+
+def _set_owner_payout_paid(sale_id: int, side: str, paid: bool) -> dict:
+    conn = get_connection()
+    try:
+        split = conn.execute("SELECT * FROM splits WHERE sale_id = ?", (sale_id,)).fetchone()
+        if split is None:
+            raise HTTPException(404, "venda não encontrada")
+        if split[f"owner_{side}_amount"] <= 0:
+            raise HTTPException(400, "esta venda não tem valor a repassar para essa dona")
+
+        if paid:
+            conn.execute(f"UPDATE splits SET owner_{side}_paid_at = CURRENT_TIMESTAMP WHERE sale_id = ?", (sale_id,))
+        else:
+            conn.execute(f"UPDATE splits SET owner_{side}_paid_at = NULL WHERE sale_id = ?", (sale_id,))
+        conn.commit()
+
+        row = conn.execute(SALE_SELECT + " WHERE sales.id = ?", (sale_id,)).fetchone()
+        payments_by_receipt = _payments_by_receipt(conn, [row["receipt_id"]])
+        return _row_to_sale(row, payments_by_receipt)
+    finally:
+        conn.close()
+
+
+@router.post("/{sale_id}/owner-payout/{side}/mark-paid", response_model=SaleOut)
+def mark_owner_payout_paid(sale_id: int, side: str):
+    if side not in ("a", "b"):
+        raise HTTPException(400, "lado inválido")
+    return _set_owner_payout_paid(sale_id, side, True)
+
+
+@router.post("/{sale_id}/owner-payout/{side}/mark-unpaid", response_model=SaleOut)
+def mark_owner_payout_unpaid(sale_id: int, side: str):
+    if side not in ("a", "b"):
+        raise HTTPException(400, "lado inválido")
+    return _set_owner_payout_paid(sale_id, side, False)
