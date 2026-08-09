@@ -9,10 +9,58 @@ from backend.schemas import PayoutRequest, SupplierCreate, SupplierDetailOut, Su
 
 router = APIRouter(prefix="/api/suppliers", tags=["suppliers"])
 
+# roadmap.md §7 / AUDIT.md §3.4c — user-confirmed rule: a piece is "bad" if it isn't
+# sold within a week of intake. Reliability is the % of a supplier's judged pieces
+# (sold, withdrawn unsold, or still unsold past the window) that sold within it —
+# pieces still in stock inside the window aren't judged yet either way.
+RELIABILITY_WINDOW_DAYS = 7
+
 
 def _validate_commission(pct: float) -> None:
     if pct < 0 or pct > 100:
         raise HTTPException(400, "a comissão deve estar entre 0 e 100")
+
+
+def _supplier_reliability(conn, supplier_id: int) -> dict:
+    rows = conn.execute(
+        """
+        SELECT items.intake_date, sales.sale_date, withdrawals.withdrawn_date
+        FROM items
+        LEFT JOIN sales ON sales.item_id = items.id AND sales.voided_at IS NULL
+        LEFT JOIN withdrawals ON withdrawals.item_id = items.id
+        WHERE items.supplier_id = ? AND items.status != 'deleted'
+        """,
+        (supplier_id,),
+    ).fetchall()
+
+    now = datetime.now()
+    sold_within_window = sold_late = withdrawn_unsold = pending_overdue = 0
+    for row in rows:
+        intake = datetime.fromisoformat(row["intake_date"])
+        if row["sale_date"]:
+            days_to_sale = (datetime.fromisoformat(row["sale_date"]) - intake).days
+            if days_to_sale <= RELIABILITY_WINDOW_DAYS:
+                sold_within_window += 1
+            else:
+                sold_late += 1
+        elif row["withdrawn_date"]:
+            withdrawn_unsold += 1
+        elif (now - intake).days > RELIABILITY_WINDOW_DAYS:
+            pending_overdue += 1
+        # else: still in stock and within the window — too soon to judge, excluded.
+
+    judged_total = sold_within_window + sold_late + withdrawn_unsold + pending_overdue
+    reliability_pct = round(100 * sold_within_window / judged_total, 1) if judged_total else None
+
+    return {
+        "window_days": RELIABILITY_WINDOW_DAYS,
+        "sold_within_window": sold_within_window,
+        "sold_late": sold_late,
+        "withdrawn_unsold": withdrawn_unsold,
+        "pending_overdue": pending_overdue,
+        "judged_total": judged_total,
+        "reliability_pct": reliability_pct,
+    }
 
 
 @router.get("", response_model=List[SupplierOut])
@@ -138,6 +186,7 @@ def get_supplier(supplier_id: int):
             "total_paid": total_paid,
             "payout_sales": payout_sales,
             "withdrawals": withdrawals,
+            "reliability": _supplier_reliability(conn, supplier_id),
         }
     finally:
         conn.close()

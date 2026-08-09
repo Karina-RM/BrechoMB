@@ -92,6 +92,20 @@ class SupplierWithdrawalOut(BaseModel):
     days_in_store: int
 
 
+class SupplierReliabilityOut(BaseModel):
+    # roadmap.md §7 / AUDIT.md §3.4c — a piece is "good" if sold within window_days of
+    # intake, "bad" otherwise (sold late, withdrawn unsold, or still unsold past the
+    # window). Pieces still in stock within the window aren't judged yet, so they're
+    # excluded from both counts and from reliability_pct.
+    window_days: int
+    sold_within_window: int
+    sold_late: int
+    withdrawn_unsold: int
+    pending_overdue: int
+    judged_total: int
+    reliability_pct: Optional[float]
+
+
 class SupplierDetailOut(BaseModel):
     id: int
     name: str
@@ -102,6 +116,7 @@ class SupplierDetailOut(BaseModel):
     total_paid: float
     payout_sales: List[SupplierPayoutSaleOut]
     withdrawals: List[SupplierWithdrawalOut]
+    reliability: SupplierReliabilityOut
 
 
 class ItemOut(BaseModel):

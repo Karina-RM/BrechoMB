@@ -1802,6 +1802,55 @@ async function handleCommissionSave(supplierId) {
   }
 }
 
+// AUDIT.md §3.4c, user-confirmed rule: a piece is "bad" if not sold within a week of
+// intake. >=50% sold within the window is the natural majority cut for a quick
+// Confiável/Atenção badge — the raw percentage and breakdown are always shown too, so
+// the badge is a hint, not the only signal.
+function renderSupplierReliability(r) {
+  const container = document.getElementById("supplier-detail-reliability");
+  if (r.judged_total === 0) {
+    container.innerHTML = `<p class="text-sm text-gray-500 dark:text-gray-400">Ainda não há peças com desfecho definido (vendida ou parada há mais de ${r.window_days} dias) para calcular a confiabilidade.</p>`;
+    return;
+  }
+  const reliable = r.reliability_pct >= 50;
+  const badgeClass = reliable
+    ? "bg-green-50 text-green-700 inset-ring inset-ring-green-600/20 dark:bg-green-500/10 dark:text-green-400 dark:inset-ring-green-500/20"
+    : "bg-amber-50 text-amber-700 inset-ring inset-ring-amber-600/20 dark:bg-amber-500/10 dark:text-amber-400 dark:inset-ring-amber-500/20";
+  const badgeLabel = reliable ? "Confiável" : "Atenção";
+  container.innerHTML = `
+    <div class="rounded-lg bg-white p-6 shadow-xs inset-ring inset-ring-gray-200 dark:bg-white/5 dark:inset-ring-white/10">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 class="text-base font-semibold text-gray-900 dark:text-white">Confiabilidade</h3>
+          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">% de peças vendidas em até ${r.window_days} dias da entrada</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <span class="text-3xl font-bold text-gray-900 dark:text-white">${r.reliability_pct}%</span>
+          <span class="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${badgeClass}">${badgeLabel}</span>
+        </div>
+      </div>
+      <dl class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div>
+          <dt class="text-xs text-gray-500 dark:text-gray-400">Vendidas rápido</dt>
+          <dd class="text-sm font-semibold text-gray-900 dark:text-white">${r.sold_within_window}</dd>
+        </div>
+        <div>
+          <dt class="text-xs text-gray-500 dark:text-gray-400">Vendidas devagar</dt>
+          <dd class="text-sm font-semibold text-gray-900 dark:text-white">${r.sold_late}</dd>
+        </div>
+        <div>
+          <dt class="text-xs text-gray-500 dark:text-gray-400">Retiradas sem vender</dt>
+          <dd class="text-sm font-semibold text-gray-900 dark:text-white">${r.withdrawn_unsold}</dd>
+        </div>
+        <div>
+          <dt class="text-xs text-gray-500 dark:text-gray-400">Em estoque, atrasada</dt>
+          <dd class="text-sm font-semibold text-gray-900 dark:text-white">${r.pending_overdue}</dd>
+        </div>
+      </dl>
+    </div>
+  `;
+}
+
 async function showSupplierDetail(supplierId) {
   currentSupplierDetailId = supplierId;
   const supplier = await api(`/api/suppliers/${supplierId}`);
@@ -1812,6 +1861,8 @@ async function showSupplierDetail(supplierId) {
   document.getElementById("supplier-detail-paid").textContent = `já repassado: ${currency.format(supplier.total_paid)}`;
   document.getElementById("supplier-detail-register-payout").disabled = supplier.total_owed <= 0;
   document.getElementById("supplier-detail-register-payout").classList.toggle("opacity-50", supplier.total_owed <= 0);
+
+  renderSupplierReliability(supplier.reliability);
 
   const itemsBody = document.getElementById("supplier-items-body");
   itemsBody.innerHTML = supplier.items.length
