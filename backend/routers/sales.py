@@ -194,6 +194,16 @@ def void_sale(sale_id: int):
         if sale["voided_at"] is not None:
             raise HTTPException(400, "esta venda já foi estornada")
 
+        # AUDIT.md §1.4: reports filter voided_at IS NULL, so a paid split on a voided
+        # sale would simply vanish from every total instead of appearing as something to
+        # reconcile. Conservative fix: block the void until the payout is unmarked —
+        # reversible via the existing mark-unpaid endpoints, no clawback flow needed.
+        split = conn.execute("SELECT * FROM splits WHERE sale_id = ?", (sale_id,)).fetchone()
+        if split and (split["paid_at"] or split["owner_a_paid_at"] or split["owner_b_paid_at"]):
+            raise HTTPException(
+                400, "esta venda tem repasse já pago — desmarque o pagamento antes de estornar"
+            )
+
         conn.execute("UPDATE sales SET voided_at = CURRENT_TIMESTAMP WHERE id = ?", (sale_id,))
         conn.execute("UPDATE items SET status = 'in_stock' WHERE id = ?", (sale["item_id"],))
         conn.commit()

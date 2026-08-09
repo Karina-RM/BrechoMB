@@ -52,3 +52,23 @@ def test_void_reopens_item_and_allows_resale(client):
 
     second_sale = checkout(client, item["id"])
     assert second_sale["id"] != sale["id"]
+
+
+def test_void_blocked_while_owner_payout_is_marked_paid(client):
+    # AUDIT.md §1.4: voiding a sale whose commission was already paid would make that
+    # paid amount vanish from every report total (they filter voided_at IS NULL) instead
+    # of surfacing as something to reconcile.
+    item = create_item(client)
+    sale = checkout(client, item["id"])
+
+    assert client.post(f"/api/sales/{sale['id']}/owner-payout/a/mark-paid").status_code == 200
+
+    res = client.post(f"/api/sales/{sale['id']}/void")
+    assert res.status_code == 400
+
+    assert client.post(f"/api/sales/{sale['id']}/owner-payout/a/mark-unpaid").status_code == 200
+
+    res = client.post(f"/api/sales/{sale['id']}/void")
+    assert res.status_code == 200
+    item_after = client.get(f"/api/items/{item['id']}").json()
+    assert item_after["status"] == "in_stock"
