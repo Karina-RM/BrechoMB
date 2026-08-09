@@ -777,6 +777,51 @@ async function renderDonaDetail() {
       </div>
 
       <div class="mt-8 flex flex-wrap items-center justify-between gap-3">
+        <h4 class="text-base font-semibold text-gray-900 dark:text-white">Desempenho</h4>
+        <div class="grid grid-cols-1">
+          <select id="dona-report-preset-${owner.id}" onchange="handleDonaReportDatePresetChange(${owner.id})" class="col-start-1 row-start-1 w-44 appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-gray-800">
+            <option value="all">Todo período</option>
+            <option value="today">Hoje</option>
+            <option value="7d">Últimos 7 dias</option>
+            <option value="30d">Últimos 30 dias</option>
+            <option value="month">Este mês</option>
+            <option value="custom">Personalizado</option>
+          </select>
+          <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" class="pointer-events-none col-start-1 row-start-1 mr-2 size-4 self-center justify-self-end text-gray-500 dark:text-gray-400">
+            <path d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" fill-rule="evenodd" />
+          </svg>
+        </div>
+      </div>
+      <div id="dona-report-date-custom-${owner.id}" hidden class="mt-3 flex items-center gap-2">
+        <input type="date" id="dona-report-start-${owner.id}" onchange="loadDonaReports(${owner.id})" class="rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10" />
+        <span class="text-sm text-gray-500 dark:text-gray-400">até</span>
+        <input type="date" id="dona-report-end-${owner.id}" onchange="loadDonaReports(${owner.id})" class="rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10" />
+      </div>
+
+      <div id="dona-report-stats-${owner.id}" class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"></div>
+
+      <h5 class="mt-6 text-sm font-semibold text-gray-900 dark:text-white">Vendas por fornecedora</h5>
+      <div id="dona-report-supplier-chart-${owner.id}" class="mt-3"></div>
+      <div class="mt-3 flow-root">
+        <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
+          <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
+            <table class="min-w-full divide-y divide-gray-300 dark:divide-white/15">
+              <thead>
+                <tr>
+                  <th scope="col" class="py-3 pr-3 pl-4 text-left text-xs font-medium tracking-wide text-gray-500 uppercase sm:pl-0 dark:text-gray-400">Fornecedora</th>
+                  <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Peças vendidas</th>
+                  <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Receita</th>
+                  <th scope="col" class="py-3 pr-4 pl-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase sm:pr-0 dark:text-gray-400">Comissão paga</th>
+                </tr>
+              </thead>
+              <tbody id="dona-report-supplier-body-${owner.id}" class="divide-y divide-gray-200 bg-white dark:divide-white/10 dark:bg-gray-900"></tbody>
+            </table>
+            <p id="dona-report-supplier-empty-${owner.id}" hidden class="py-10 text-center text-sm text-gray-500 dark:text-gray-400">Nenhuma venda de peça de fornecedora registrada ainda.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-8 flex flex-wrap items-center justify-between gap-3">
         <h4 class="text-base font-semibold text-gray-900 dark:text-white">Repasses</h4>
         <div class="flex items-center gap-3">
           <button type="button" id="owner-payouts-register-selected-${owner.id}" onclick="handleRegisterSelectedOwnerPayouts(${owner.id})" hidden class="rounded-md bg-pink-600 px-3 py-2 text-sm font-semibold text-white shadow-xs hover:bg-pink-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600 dark:bg-pink-500 dark:hover:bg-pink-400">Registrar repasse dos selecionados</button>
@@ -823,7 +868,83 @@ async function renderDonaDetail() {
     });
   });
 
-  await loadOwnerPayouts(owner.id);
+  await Promise.all([loadDonaReports(owner.id), loadOwnerPayouts(owner.id)]);
+}
+
+// Per-dona breakdown (Proprietárias) — the identity-linked counterpart to the
+// shop-wide Relatórios landing page. Always scoped to this one owner via owner_id,
+// so a dona only ever sees her own earnings and her own suppliers' numbers here;
+// the other dona's figures require switching to her tab, same as the rest of this page.
+function handleDonaReportDatePresetChange(ownerId) {
+  const preset = document.getElementById(`dona-report-preset-${ownerId}`).value;
+  document.getElementById(`dona-report-date-custom-${ownerId}`).hidden = preset !== "custom";
+  loadDonaReports(ownerId);
+}
+
+function getDonaReportFilterParams(ownerId) {
+  const params = resolveDateRangeParams(`dona-report-preset-${ownerId}`, `dona-report-start-${ownerId}`, `dona-report-end-${ownerId}`);
+  params.set("owner_id", ownerId);
+  return params;
+}
+
+async function loadDonaReports(ownerId) {
+  const params = getDonaReportFilterParams(ownerId);
+  await Promise.all([loadDonaReportSummary(ownerId, params), loadDonaReportBySupplier(ownerId, params)]);
+}
+
+async function loadDonaReportSummary(ownerId, params) {
+  const summary = await fetch(`/api/reports/summary?${params}`).then((r) => r.json());
+  const owner = settingsOwnersCache.find((o) => o.id === ownerId);
+  const myEarnings = owner?.is_cut_owner ? summary.owner_a_earnings : summary.owner_b_earnings;
+  const stats = [
+    { label: "Peças vendidas", value: String(summary.total_sales) },
+    { label: "Receita gerada", value: currency.format(summary.total_revenue) },
+    { label: "Meus ganhos", value: currency.format(myEarnings) },
+    { label: "Comissão de fornecedoras", value: currency.format(summary.supplier_commission_total) },
+    { label: "Pago a fornecedoras", value: currency.format(summary.supplier_commission_paid) },
+    { label: "Ainda a pagar", value: currency.format(summary.supplier_commission_pending) },
+  ];
+  document.getElementById(`dona-report-stats-${ownerId}`).innerHTML = stats
+    .map(
+      (s) => `
+      <div class="overflow-hidden rounded-lg bg-white px-4 py-4 shadow-sm inset-ring inset-ring-gray-200 dark:bg-white/5 dark:inset-ring-white/10">
+        <dt class="truncate text-sm font-medium text-gray-500 dark:text-gray-400">${s.label}</dt>
+        <dd class="mt-1 text-xl font-semibold tracking-tight text-gray-900 dark:text-white">${s.value}</dd>
+      </div>
+    `
+    )
+    .join("");
+}
+
+async function loadDonaReportBySupplier(ownerId, params) {
+  const rows = await fetch(`/api/reports/by-supplier?${params}`).then((r) => r.json());
+  document.getElementById(`dona-report-supplier-chart-${ownerId}`).innerHTML = renderHorizontalBarChart(
+    rows,
+    "supplier_name",
+    "total_revenue",
+    (v) => currency.format(v)
+  );
+
+  const body = document.getElementById(`dona-report-supplier-body-${ownerId}`);
+  const empty = document.getElementById(`dona-report-supplier-empty-${ownerId}`);
+  body.innerHTML = "";
+  if (rows.length === 0) {
+    empty.hidden = false;
+    return;
+  }
+  empty.hidden = true;
+  body.innerHTML = rows
+    .map(
+      (r) => `
+      <tr>
+        <td class="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-gray-900 sm:pl-0 dark:text-white">${r.supplier_name}</td>
+        <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${r.count}</td>
+        <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${currency.format(r.total_revenue)}</td>
+        <td class="py-4 pr-4 pl-3 text-sm whitespace-nowrap text-gray-500 sm:pr-0 dark:text-gray-400">${currency.format(r.total_commission)}</td>
+      </tr>
+    `
+    )
+    .join("");
 }
 
 // --- Navigation / routing -------------------------------------------------
@@ -973,23 +1094,6 @@ async function loadAssignments() {
     document.getElementById("owner-b-header").textContent = ownerB.name;
   }
 
-  const reportOwnerSelect = document.getElementById("report-owner-filter");
-  reportOwnerSelect.innerHTML = '<option value="">Ambas as donas</option>';
-  for (const owner of owners) {
-    const opt = document.createElement("option");
-    opt.value = owner.id;
-    opt.textContent = owner.name;
-    reportOwnerSelect.appendChild(opt);
-  }
-
-  const reportSupplierSelect = document.getElementById("report-supplier-filter");
-  reportSupplierSelect.innerHTML = '<option value="">Todas as fornecedoras</option>';
-  for (const supplier of suppliers) {
-    const opt = document.createElement("option");
-    opt.value = supplier.id;
-    opt.textContent = supplier.name;
-    reportSupplierSelect.appendChild(opt);
-  }
 }
 
 function describeItem(item) {
@@ -2216,11 +2320,22 @@ function handleReportDatePresetChange() {
   loadReports();
 }
 
-// Shared by every /api/reports/* fetch — one date-range/department/owner/supplier
-// filter set slices all four reports together, matching the filter bar above them.
+// Shared by every /api/reports/* fetch on the Relatórios landing page — this tier is
+// shop-wide and identity-free by design (no owner/supplier breakdown), so anyone
+// glancing at the screen only ever sees aggregate numbers. Per-dona and per-fornecedora
+// breakdowns live one level deeper, in Proprietárias (see getDonaReportFilterParams).
 function getReportFilterParams() {
+  const params = resolveDateRangeParams("report-date-preset", "report-start-date", "report-end-date");
+  const department = document.getElementById("report-department-filter").value;
+  if (department) params.set("department", department);
+  return params;
+}
+
+// Shared date-preset-to-range logic for both the Relatórios landing page and the
+// per-dona report block in Proprietárias.
+function resolveDateRangeParams(presetId, startId, endId) {
   const params = new URLSearchParams();
-  const preset = document.getElementById("report-date-preset").value;
+  const preset = document.getElementById(presetId).value;
   const today = new Date();
   const iso = (d) => d.toISOString().slice(0, 10);
   if (preset === "today") {
@@ -2240,18 +2355,11 @@ function getReportFilterParams() {
     params.set("start_date", iso(new Date(today.getFullYear(), today.getMonth(), 1)));
     params.set("end_date", iso(today));
   } else if (preset === "custom") {
-    const start = document.getElementById("report-start-date").value;
-    const end = document.getElementById("report-end-date").value;
+    const start = document.getElementById(startId).value;
+    const end = document.getElementById(endId).value;
     if (start) params.set("start_date", start);
     if (end) params.set("end_date", end);
   }
-
-  const department = document.getElementById("report-department-filter").value;
-  const owner = document.getElementById("report-owner-filter").value;
-  const supplier = document.getElementById("report-supplier-filter").value;
-  if (department) params.set("department", department);
-  if (owner) params.set("owner_id", owner);
-  if (supplier) params.set("supplier_id", supplier);
   return params;
 }
 
@@ -2316,16 +2424,14 @@ function renderVerticalBarChart(rows, labelKey, valueKey, formatValue) {
   `;
 }
 
+// Shop-wide only — deliberately excludes owner earnings and supplier commission,
+// which are identity-linked and belong one level deeper in Proprietárias
+// (loadDonaReportSummary), not on the landing screen anyone can glance at.
 async function loadReportSummary(params) {
   const summary = await fetch(`/api/reports/summary?${params}`).then((r) => r.json());
   const stats = [
     { label: "Total de vendas", value: String(summary.total_sales) },
     { label: "Receita total", value: currency.format(summary.total_revenue) },
-    { label: summary.owner_a_name, value: currency.format(summary.owner_a_earnings) },
-    { label: summary.owner_b_name, value: currency.format(summary.owner_b_earnings) },
-    { label: "Comissão de fornecedoras", value: currency.format(summary.supplier_commission_total) },
-    { label: "Pago a fornecedoras", value: currency.format(summary.supplier_commission_paid) },
-    { label: "Ainda a pagar", value: currency.format(summary.supplier_commission_pending) },
   ];
   document.getElementById("report-stats").innerHTML = stats
     .map(
@@ -2366,35 +2472,6 @@ async function loadReportByCategory(params) {
     .join("");
 }
 
-async function loadReportBySupplier(params) {
-  const rows = await fetch(`/api/reports/by-supplier?${params}`).then((r) => r.json());
-  document.getElementById("report-supplier-chart").innerHTML = renderHorizontalBarChart(rows, "supplier_name", "total_revenue", (v) =>
-    currency.format(v)
-  );
-
-  const body = document.getElementById("report-supplier-body");
-  const empty = document.getElementById("report-supplier-empty");
-  body.innerHTML = "";
-  if (rows.length === 0) {
-    empty.hidden = false;
-    return;
-  }
-  empty.hidden = true;
-  body.innerHTML = rows
-    .map(
-      (r) => `
-      <tr>
-        <td class="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-gray-900 sm:pl-0 dark:text-white">${r.supplier_name}</td>
-        <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${r.owner_name}</td>
-        <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${r.count}</td>
-        <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${currency.format(r.total_revenue)}</td>
-        <td class="py-4 pr-4 pl-3 text-sm whitespace-nowrap text-gray-500 sm:pr-0 dark:text-gray-400">${currency.format(r.total_commission)}</td>
-      </tr>
-    `
-    )
-    .join("");
-}
-
 async function loadReportTimeline(params) {
   const granularity = document.getElementById("timeline-granularity").value;
   const rows = await fetch(`/api/reports/timeline?granularity=${granularity}&${params}`).then((r) => r.json());
@@ -2423,12 +2500,7 @@ async function loadReportTimeline(params) {
 
 async function loadReports() {
   const params = getReportFilterParams();
-  await Promise.all([
-    loadReportSummary(params),
-    loadReportByCategory(params),
-    loadReportBySupplier(params),
-    loadReportTimeline(params),
-  ]);
+  await Promise.all([loadReportSummary(params), loadReportByCategory(params), loadReportTimeline(params)]);
 }
 
 function setFormMessage(elementId, text, kind) {
@@ -2573,8 +2645,6 @@ document.getElementById("report-date-preset").addEventListener("change", handleR
 document.getElementById("report-start-date").addEventListener("change", loadReports);
 document.getElementById("report-end-date").addEventListener("change", loadReports);
 document.getElementById("report-department-filter").addEventListener("change", loadReports);
-document.getElementById("report-owner-filter").addEventListener("change", loadReports);
-document.getElementById("report-supplier-filter").addEventListener("change", loadReports);
 window.addEventListener("hashchange", showView);
 ["mousedown", "keydown", "touchstart"].forEach((evt) => window.addEventListener(evt, resetInactivityTimer));
 

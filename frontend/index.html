@@ -448,6 +448,7 @@
         <!-- RELATÓRIOS -->
         <section data-view="reports" hidden>
           <h2 class="text-2xl/7 font-bold text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight dark:text-white">Relatórios</h2>
+          <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">Visão geral da loja — dados por dona e por fornecedora ficam em Proprietárias, na aba de cada uma.</p>
 
           <div class="mt-6 flex flex-wrap items-center gap-3">
             <div class="grid grid-cols-1">
@@ -476,25 +477,9 @@
                 <path d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" fill-rule="evenodd" />
               </svg>
             </div>
-            <div class="grid grid-cols-1">
-              <select id="report-owner-filter" class="col-start-1 row-start-1 w-40 appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-gray-800">
-                <option value="">Ambas as donas</option>
-              </select>
-              <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" class="pointer-events-none col-start-1 row-start-1 mr-2 size-4 self-center justify-self-end text-gray-500 dark:text-gray-400">
-                <path d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" fill-rule="evenodd" />
-              </svg>
-            </div>
-            <div class="grid grid-cols-1">
-              <select id="report-supplier-filter" class="col-start-1 row-start-1 w-52 appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pink-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-gray-800">
-                <option value="">Todas as fornecedoras</option>
-              </select>
-              <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" class="pointer-events-none col-start-1 row-start-1 mr-2 size-4 self-center justify-self-end text-gray-500 dark:text-gray-400">
-                <path d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" fill-rule="evenodd" />
-              </svg>
-            </div>
           </div>
 
-          <div id="report-stats" class="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"></div>
+          <div id="report-stats" class="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2"></div>
 
           <h3 class="mt-10 text-base font-semibold text-gray-900 dark:text-white">Vendas por categoria</h3>
           <div id="report-category-chart" class="mt-4"></div>
@@ -512,28 +497,6 @@
                   <tbody id="report-category-body" class="divide-y divide-gray-200 bg-white dark:divide-white/10 dark:bg-gray-900"></tbody>
                 </table>
                 <p id="report-category-empty" hidden class="py-10 text-center text-sm text-gray-500 dark:text-gray-400">Nenhuma venda registrada ainda.</p>
-              </div>
-            </div>
-          </div>
-
-          <h3 class="mt-10 text-base font-semibold text-gray-900 dark:text-white">Vendas por fornecedora</h3>
-          <div id="report-supplier-chart" class="mt-4"></div>
-          <div class="mt-4 flow-root">
-            <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
-              <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
-                <table class="min-w-full divide-y divide-gray-300 dark:divide-white/15">
-                  <thead>
-                    <tr>
-                      <th scope="col" class="py-3 pr-3 pl-4 text-left text-xs font-medium tracking-wide text-gray-500 uppercase sm:pl-0 dark:text-gray-400">Fornecedora</th>
-                      <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Vinculada a</th>
-                      <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Peças vendidas</th>
-                      <th scope="col" class="px-3 py-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">Receita</th>
-                      <th scope="col" class="py-3 pr-4 pl-3 text-left text-xs font-medium tracking-wide text-gray-500 uppercase sm:pr-0 dark:text-gray-400">Comissão paga</th>
-                    </tr>
-                  </thead>
-                  <tbody id="report-supplier-body" class="divide-y divide-gray-200 bg-white dark:divide-white/10 dark:bg-gray-900"></tbody>
-                </table>
-                <p id="report-supplier-empty" hidden class="py-10 text-center text-sm text-gray-500 dark:text-gray-400">Nenhuma venda de peça de fornecedora registrada ainda.</p>
               </div>
             </div>
           </div>
