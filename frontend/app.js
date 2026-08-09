@@ -114,7 +114,8 @@ const CATEGORY_ICON_KEY = {
 function renderPhotoOrIcon(item) {
   const photo = item.photo_paths[0];
   if (photo) {
-    return `<img src="${photo}" loading="lazy" class="size-full object-cover" />`;
+    // Decorative — every place this renders already shows the SKU/name alongside it.
+    return `<img src="${photo}" loading="lazy" alt="" class="size-full object-cover" />`;
   }
   const iconKey = CATEGORY_ICON_KEY[item.category] || "tag";
   return `
@@ -1290,13 +1291,13 @@ function renderInventoryListRow(item) {
       <td class="px-3 py-2 text-sm font-medium whitespace-nowrap text-gray-900 dark:text-white">
         <a href="#items/${item.id}" class="hover:text-pink-600 dark:hover:text-pink-400">${esc(item.sku)}</a>
       </td>
-      <td class="extra-col px-3 py-2 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${esc(item.department) || "—"}</td>
-      <td class="px-3 py-2 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${esc(item.category) || "—"}${item.size ? ` · ${esc(item.size)}` : ""}</td>
-      <td class="extra-col px-3 py-2 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${esc(item.brand) || "—"}</td>
-      <td class="extra-col px-3 py-2 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${esc(item.condition) || "—"}</td>
-      <td class="extra-col px-3 py-2 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${esc(item.color) || "—"}</td>
-      <td class="extra-col px-3 py-2 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${esc(item.material) || "—"}</td>
-      <td class="extra-col max-w-40 truncate px-3 py-2 text-sm text-gray-500 dark:text-gray-400" title="${esc(item.observations)}">${esc(item.observations) || "—"}</td>
+      <td class="extra-col px-3 py-2 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${esc(item.department)}</td>
+      <td class="px-3 py-2 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${esc(item.category)}${item.size ? ` · ${esc(item.size)}` : ""}</td>
+      <td class="extra-col px-3 py-2 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${esc(item.brand)}</td>
+      <td class="extra-col px-3 py-2 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${esc(item.condition)}</td>
+      <td class="extra-col px-3 py-2 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${esc(item.color)}</td>
+      <td class="extra-col px-3 py-2 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${esc(item.material)}</td>
+      <td class="extra-col max-w-40 truncate px-3 py-2 text-sm text-gray-500 dark:text-gray-400" title="${esc(item.observations)}">${esc(item.observations)}</td>
       <td class="px-3 py-2 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${currency.format(item.price)}</td>
       <td class="px-3 py-2 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${describeItem(item)}</td>
       <td class="px-3 py-2 text-sm whitespace-nowrap">${statusBadge(item.status)}</td>
@@ -1339,7 +1340,7 @@ function renderInventoryCard(item) {
           <a href="#items/${item.id}" class="truncate font-semibold text-gray-900 hover:text-pink-600 dark:text-white dark:hover:text-pink-400">${esc(item.sku)}</a>
           ${statusBadge(item.status)}
         </div>
-        <p class="truncate text-sm text-gray-500 dark:text-gray-400">${esc(item.category) || "—"}${item.size ? ` · ${esc(item.size)}` : ""}</p>
+        <p class="truncate text-sm text-gray-500 dark:text-gray-400">${esc(item.category)}${item.size ? ` · ${esc(item.size)}` : ""}</p>
         <p class="text-lg font-bold text-gray-900 dark:text-white">${currency.format(item.price)}</p>
         <p class="truncate text-xs text-gray-400 dark:text-gray-500">${describeItem(item)}</p>
       </div>
@@ -1819,7 +1820,7 @@ async function showSupplierDetail(supplierId) {
           (item) => `
         <tr>
           <td class="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-gray-900 sm:pl-0 dark:text-white">${esc(item.sku)}</td>
-          <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${esc(item.category) || "—"}</td>
+          <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${esc(item.category)}</td>
           <td class="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">${currency.format(item.price)}</td>
           <td class="py-4 pr-4 pl-3 text-sm whitespace-nowrap sm:pr-0">${statusBadge(item.status)}</td>
         </tr>
@@ -2123,21 +2124,25 @@ async function showItemDetail(itemId) {
   const photosEl = document.getElementById("item-detail-photos");
   photosEl.innerHTML = item.photo_paths
     .map(
-      (p) =>
-        `<img src="${p}" class="aspect-square w-full rounded-lg bg-gray-100 object-cover outline outline-gray-200 dark:bg-gray-800 dark:outline-white/10" />`
+      (p, i) =>
+        `<img src="${p}" alt="Foto ${i + 1} da peça ${esc(item.sku)}" class="aspect-square w-full rounded-lg bg-gray-100 object-cover outline outline-gray-200 dark:bg-gray-800 dark:outline-white/10" />`
     )
     .join("");
 
+  // AUDIT.md §3.3 — these are all optional descriptive metadata a dona may or may not
+  // fill in; blank when absent instead of "—" in almost every row. The dash stays
+  // reserved elsewhere in the app for cases where absence is itself meaningful (e.g.
+  // "Vinculada a" always resolves to an actual owner/fornecedora, never blank).
   const fields = [
     ["Vinculada a", describeItem(item)],
-    ["Departamento", esc(item.department) || "—"],
-    ["Categoria", esc(item.category) || "—"],
-    ["Marca", esc(item.brand) || "—"],
-    ["Tamanho", esc(item.size) || "—"],
-    ["Condição", esc(item.condition) || "—"],
-    ["Cor / Estampa", esc(item.color) || "—"],
-    ["Material", esc(item.material) || "—"],
-    ["Observações", esc(item.observations) || "—"],
+    ["Departamento", esc(item.department)],
+    ["Categoria", esc(item.category)],
+    ["Marca", esc(item.brand)],
+    ["Tamanho", esc(item.size)],
+    ["Condição", esc(item.condition)],
+    ["Cor / Estampa", esc(item.color)],
+    ["Material", esc(item.material)],
+    ["Observações", esc(item.observations)],
     ["Preço", currency.format(item.price)],
     ["Data de entrada", formatDate(item.intake_date)],
   ];
