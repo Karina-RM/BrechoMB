@@ -1022,7 +1022,10 @@ async function showView() {
   else if (resolvedView === "sales") await loadSales();
   else if (resolvedView === "suppliers") await loadSuppliers();
   else if (resolvedView === "supplier-detail") await showSupplierDetail(Number(id));
-  else if (resolvedView === "reports") await loadReports();
+  else if (resolvedView === "reports") {
+    reportPayoutsMasked = true;
+    await loadReports();
+  }
   else if (resolvedView === "settings") await loadSettings(id ? Number(id) : null);
 }
 
@@ -2428,10 +2431,19 @@ function renderVerticalBarChart(rows, labelKey, valueKey, formatValue) {
   `;
 }
 
+// Whether the Repasses cards are blurred. Defaults to masked and resets to masked
+// every time Relatórios is (re)entered via navigation (see showView) — a dona who
+// reveals it, then walks away from the counter, shouldn't leave it exposed for
+// whoever looks next. Filter changes within the same visit don't re-mask (see
+// loadReportSummary), so studying your own numbers isn't interrupted by a re-blur.
+let reportPayoutsMasked = true;
+
 // Shop-wide only — deliberately excludes per-dona earnings and per-fornecedora
 // commission, which are identity-linked and belong one level deeper in Proprietárias
-// (loadDonaReportSummary). The payout totals below are safe because they're combined
-// across both donas / all fornecedoras — no single person's number is exposed here.
+// (loadDonaReportSummary). The payout totals below are safe to compute here because
+// they're combined across both donas / all fornecedoras — no single person's number
+// is exposed — but they're still money figures visible to anyone at the counter, so
+// they're blurred by default (see reportPayoutsMasked).
 async function loadReportSummary(params) {
   const summary = await fetch(`/api/reports/summary?${params}`).then((r) => r.json());
   const stats = [
@@ -2448,7 +2460,7 @@ async function loadReportSummary(params) {
     { label: "Já pago a fornecedoras", value: currency.format(summary.supplier_commission_paid) },
     { label: "Ainda a pagar a fornecedoras", value: currency.format(summary.supplier_commission_pending) },
   ];
-  document.getElementById("report-payout-stats").innerHTML = renderStatCards(payoutStats);
+  document.getElementById("report-payout-stats").innerHTML = renderStatCards(payoutStats, reportPayoutsMasked);
 
   document.getElementById("report-owner-shortcuts").innerHTML = Object.values(ownerById)
     .map(
@@ -2459,13 +2471,26 @@ async function loadReportSummary(params) {
     .join("");
 }
 
-function renderStatCards(stats) {
+function toggleReportPayoutsMask() {
+  reportPayoutsMasked = !reportPayoutsMasked;
+  document.querySelectorAll("#report-payout-stats .payout-stat-value").forEach((dd) => {
+    dd.classList.toggle("blur-sm", reportPayoutsMasked);
+    dd.classList.toggle("select-none", reportPayoutsMasked);
+  });
+  document.getElementById("report-payouts-eye-closed").classList.toggle("hidden", !reportPayoutsMasked);
+  document.getElementById("report-payouts-eye-open").classList.toggle("hidden", reportPayoutsMasked);
+  document
+    .getElementById("report-payouts-mask-toggle")
+    .setAttribute("aria-label", reportPayoutsMasked ? "Mostrar valores de repasses" : "Ocultar valores de repasses");
+}
+
+function renderStatCards(stats, masked = false) {
   return stats
     .map(
       (s) => `
       <div class="overflow-hidden rounded-lg bg-white px-4 py-5 shadow-sm sm:p-6 dark:bg-gray-800/75 dark:inset-ring dark:inset-ring-white/10">
         <dt class="truncate text-sm font-medium text-gray-500 dark:text-gray-400">${s.label}</dt>
-        <dd class="mt-1 text-2xl font-semibold tracking-tight text-gray-900 dark:text-white">${s.value}</dd>
+        <dd class="payout-stat-value mt-1 text-2xl font-semibold tracking-tight text-gray-900 dark:text-white ${masked ? "blur-sm select-none" : ""}">${s.value}</dd>
       </div>
     `
     )
