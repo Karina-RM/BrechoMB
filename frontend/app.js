@@ -476,6 +476,49 @@ function showAlert(slotId, message, kind) {
   slot.appendChild(wrapper);
 }
 
+const TOAST_DISMISS_MS = 6000;
+
+// AUDIT.md §1.2 — a floating, auto-dismissing counterpart to showAlert's page-slotted
+// banner, for failures with no page-local alert slot to land in (background refreshes,
+// navigation-triggered loads). Reuses alertBlock for identical visual styling.
+function showToast(message, kind) {
+  const container = document.getElementById("toast-container");
+  if (!container) return;
+  const wrapper = document.createElement("div");
+  wrapper.setAttribute("data-alert", "");
+  wrapper.className = "pointer-events-auto w-full max-w-sm";
+  wrapper.innerHTML = alertBlock(message, kind);
+  container.appendChild(wrapper);
+  setTimeout(() => wrapper.remove(), TOAST_DISMISS_MS);
+}
+
+// AUDIT.md §1.2 — single fetch helper for read-only loads that have no page-local alert
+// slot of their own (list/detail loads triggered by navigation, background refreshes).
+// Write actions (form submits, POST/PATCH/DELETE) keep their existing try/catch +
+// describeApiError + showAlert pattern, which already surfaces errors right at the point
+// of action — routing those through here too would just double up the notification.
+async function api(path, options) {
+  let res;
+  try {
+    res = await fetch(path, options);
+  } catch {
+    showToast("sistema indisponível — feche e abra o programa", "error");
+    throw new Error("sistema indisponível");
+  }
+  if (!res.ok) {
+    let body = null;
+    try {
+      body = await res.json();
+    } catch {
+      // non-JSON error body — describeApiError falls back below
+    }
+    const message = describeApiError(body, "não foi possível carregar os dados");
+    showToast(message, "error");
+    throw new Error(message);
+  }
+  return res.status === 204 ? null : res.json();
+}
+
 // --- Autenticação por PIN e trava de inatividade (roadmap.md §6.5) ----------
 // Não é um sistema de segurança contra invasores — serve para identificar qual
 // dona está usando o sistema (privacidade entre as duas + atribuição limpa no
@@ -530,7 +573,7 @@ async function renderLockScreen(mode, ownerId, message, fromSettings) {
   if (mode === "choose") {
     let owners = [];
     try {
-      owners = await fetch("/api/owners").then((r) => r.json());
+      owners = await api("/api/owners");
     } catch {
       owners = [];
     }
@@ -628,7 +671,7 @@ async function handlePinSubmit(ownerId, mode, fromSettings) {
         renderLockScreen("pin", ownerId, "PIN incorreto — tente novamente");
         return;
       }
-      const owners = await fetch("/api/owners").then((r) => r.json());
+      const owners = await api("/api/owners");
       const owner = owners.find((o) => o.id === ownerId);
       completeLogin(ownerId, owner ? owner.name : "");
     } catch {
@@ -739,7 +782,7 @@ let settingsOwnersCache = [];
 // forcedOwnerId lets a deep link (e.g. the "Ver detalhamento" shortcuts on Relatórios,
 // #settings/{id}) land straight on that dona's tab instead of whichever one was last open.
 async function loadSettings(forcedOwnerId) {
-  const owners = await fetch("/api/owners").then((r) => r.json());
+  const owners = await api("/api/owners");
   settingsOwnersCache = owners;
   if (forcedOwnerId && owners.some((o) => o.id === forcedOwnerId)) {
     currentDonaId = forcedOwnerId;
@@ -905,7 +948,7 @@ async function loadDonaReports(ownerId) {
 }
 
 async function loadDonaReportSummary(ownerId, params) {
-  const summary = await fetch(`/api/reports/summary?${params}`).then((r) => r.json());
+  const summary = await api(`/api/reports/summary?${params}`);
   const owner = settingsOwnersCache.find((o) => o.id === ownerId);
   const myEarnings = owner?.is_cut_owner ? summary.owner_a_earnings : summary.owner_b_earnings;
   const stats = [
@@ -929,7 +972,7 @@ async function loadDonaReportSummary(ownerId, params) {
 }
 
 async function loadDonaReportBySupplier(ownerId, params) {
-  const rows = await fetch(`/api/reports/by-supplier?${params}`).then((r) => r.json());
+  const rows = await api(`/api/reports/by-supplier?${params}`);
   document.getElementById(`dona-report-supplier-chart-${ownerId}`).innerHTML = renderHorizontalBarChart(
     rows,
     "supplier_name",
@@ -1058,10 +1101,7 @@ async function loadHealth() {
 }
 
 async function loadAssignments() {
-  const [owners, suppliers] = await Promise.all([
-    fetch("/api/owners").then((r) => r.json()),
-    fetch("/api/suppliers").then((r) => r.json()),
-  ]);
+  const [owners, suppliers] = await Promise.all([api("/api/owners"), api("/api/suppliers")]);
 
   ownerById = Object.fromEntries(owners.map((o) => [o.id, o]));
   const select = document.getElementById("assignment");
@@ -1143,7 +1183,7 @@ async function loadInventory() {
   if (department) params.set("department", department);
   if (category) params.set("category", category);
   const query = params.toString();
-  currentInventoryItems = await fetch(`/api/items${query ? `?${query}` : ""}`).then((r) => r.json());
+  currentInventoryItems = await api(`/api/items${query ? `?${query}` : ""}`);
   inventoryPage = 1;
   renderInventoryGrid();
 }
@@ -1657,7 +1697,7 @@ function getSalesFilterParams() {
 
 async function loadSales() {
   const params = getSalesFilterParams();
-  const sales = await fetch(`/api/sales?${params}`).then((r) => r.json());
+  const sales = await api(`/api/sales?${params}`);
 
   const body = document.getElementById("sales-body");
   const empty = document.getElementById("sales-empty");
@@ -1709,7 +1749,7 @@ async function handleVoidSale(saleId) {
 }
 
 async function loadSuppliers() {
-  const suppliers = await fetch("/api/suppliers").then((r) => r.json());
+  const suppliers = await api("/api/suppliers");
 
   const body = document.getElementById("suppliers-body");
   const empty = document.getElementById("suppliers-empty");
@@ -1763,7 +1803,7 @@ async function handleCommissionSave(supplierId) {
 
 async function showSupplierDetail(supplierId) {
   currentSupplierDetailId = supplierId;
-  const supplier = await fetch(`/api/suppliers/${supplierId}`).then((r) => r.json());
+  const supplier = await api(`/api/suppliers/${supplierId}`);
 
   document.getElementById("supplier-detail-title").textContent = supplier.name;
   document.getElementById("supplier-detail-name").textContent = supplier.name;
@@ -1907,7 +1947,7 @@ async function handleRegisterSelectedSupplierPayouts() {
 }
 
 async function handleRegisterPayout(supplierId) {
-  const supplier = await fetch(`/api/suppliers/${supplierId}`).then((r) => r.json());
+  const supplier = await api(`/api/suppliers/${supplierId}`);
   if (supplier.total_owed <= 0) return;
   if (!confirm(`Registrar repasse de ${currency.format(supplier.total_owed)} para ${supplier.name}?`)) return;
   try {
@@ -1949,7 +1989,7 @@ let ownerPayoutSalesByOwner = {};
 let selectedOwnerPayoutSaleIdsByOwner = {};
 
 async function loadOwnerPayouts(ownerId) {
-  const sales = await fetch(`/api/owners/${ownerId}/payouts`).then((r) => r.json());
+  const sales = await api(`/api/owners/${ownerId}/payouts`);
   ownerPayoutSalesByOwner[ownerId] = sales;
   selectedOwnerPayoutSaleIdsByOwner[ownerId] = new Set();
   renderOwnerPayoutsTable(ownerId);
@@ -2069,7 +2109,7 @@ function detailRow(label, value) {
 }
 
 async function showItemDetail(itemId) {
-  const item = await fetch(`/api/items/${itemId}`).then((r) => r.json());
+  const item = await api(`/api/items/${itemId}`);
   currentItemDetailId = itemId;
   currentItemDetailData = item;
 
@@ -2458,7 +2498,7 @@ let reportPayoutsMasked = true;
 // is exposed — but they're still money figures visible to anyone at the counter, so
 // they're blurred by default (see reportPayoutsMasked).
 async function loadReportSummary(params) {
-  const summary = await fetch(`/api/reports/summary?${params}`).then((r) => r.json());
+  const summary = await api(`/api/reports/summary?${params}`);
   const stats = [
     { label: "Total de vendas", value: String(summary.total_sales) },
     { label: "Receita total", value: currency.format(summary.total_revenue) },
@@ -2511,7 +2551,7 @@ function renderStatCards(stats, masked = false) {
 }
 
 async function loadReportByCategory(params) {
-  const rows = await fetch(`/api/reports/by-category?${params}`).then((r) => r.json());
+  const rows = await api(`/api/reports/by-category?${params}`);
   document.getElementById("report-category-chart").innerHTML = renderHorizontalBarChart(rows, "category", "total_revenue", (v) =>
     currency.format(v)
   );
@@ -2539,7 +2579,7 @@ async function loadReportByCategory(params) {
 
 async function loadReportTimeline(params) {
   const granularity = document.getElementById("timeline-granularity").value;
-  const rows = await fetch(`/api/reports/timeline?granularity=${granularity}&${params}`).then((r) => r.json());
+  const rows = await api(`/api/reports/timeline?granularity=${granularity}&${params}`);
   document.getElementById("report-timeline-chart").innerHTML = renderVerticalBarChart(rows, "period", "total_revenue", (v) => currency.format(v));
 
   const body = document.getElementById("report-timeline-body");
