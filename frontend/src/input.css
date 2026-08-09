@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+/* Manual theme toggle (app.js toggleTheme()) — every dark: utility across the app now
+   keys off data-theme="dark" instead of prefers-color-scheme directly. An inline script
+   in index.html's <head> sets data-theme synchronously before first paint (from
+   localStorage if the owner picked one, else the system preference), so this is never
+   left unset and there's no flash of the wrong theme. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 /* Estoque list view: secondary columns start hidden so the table fits lower-res
    desktop screens without horizontal scroll; toggled via #inventory-columns-toggle. */
 #inventory-list-table.cols-collapsed .extra-col {

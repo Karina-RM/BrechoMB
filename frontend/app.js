@@ -1,3 +1,19 @@
+// --- Tema (claro/escuro) ------------------------------------------------------
+// index.html's <head> already set data-theme synchronously before first paint (from
+// localStorage, or the system preference if nothing's saved yet) — this just wires up
+// the toggle button and keeps following the system live for as long as the owner
+// hasn't explicitly picked one herself.
+function toggleTheme() {
+  const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+  localStorage.setItem("theme", next);
+  document.documentElement.dataset.theme = next;
+}
+
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
+  if (localStorage.getItem("theme")) return;
+  document.documentElement.dataset.theme = e.matches ? "dark" : "light";
+});
+
 const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
 const STATUS_LABELS = {
