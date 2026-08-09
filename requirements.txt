@@ -1,6 +1,6 @@
-fastapi
-uvicorn[standard]
-pywebview
-python-multipart
-pytest
-httpx
+fastapi==0.128.8
+uvicorn[standard]==0.39.0
+pywebview==6.2.1
+python-multipart==0.0.20
+pytest==8.4.2
+httpx==0.28.1

@@ -8,7 +8,6 @@ from fastapi import APIRouter, Form, HTTPException
 
 from backend.db import PHOTOS_DIR, get_connection
 from backend.domain import resolve_side
-from backend.money import to_cents, to_reais
 from backend.enums import (
     DEPARTMENT_CATEGORIES,
     SHOE_SIZE_CATEGORIES,
@@ -19,7 +18,8 @@ from backend.enums import (
     ItemSize,
     ShoeSize,
 )
-from backend.routers.sales import SALE_SELECT, _payments_by_receipt, _row_to_sale
+from backend.money import to_cents, to_reais
+from backend.queries import SALE_SELECT, _payments_by_receipt, _row_to_sale
 from backend.schemas import ItemDetailOut, ItemOut, ItemUpdate
 
 router = APIRouter(prefix="/api/items", tags=["items"])
@@ -231,6 +231,16 @@ def get_item(item_id: int):
         conn.close()
 
 
+# AUDIT.md §2.3: update_item's SET clause is built from ItemUpdate's field names —
+# safe today only because that Pydantic model happens to restrict the possible keys.
+# This allow-list makes the invariant explicit and independent of the schema's shape,
+# same pattern the admin panel already uses (ADMIN_TABLES) before interpolating a
+# column name into SQL.
+_EDITABLE_ITEM_COLUMNS = {
+    "size", "condition", "department", "category", "brand", "color", "material", "observations", "price",
+}
+
+
 @router.patch("/{item_id}", response_model=ItemOut)
 def update_item(item_id: int, payload: ItemUpdate):
     conn = get_connection()
@@ -244,6 +254,7 @@ def update_item(item_id: int, payload: ItemUpdate):
             raise HTTPException(400, "proprietária que fez a edição não encontrada")
 
         updates = payload.model_dump(exclude_unset=True, exclude={"edited_by_owner_id"})
+        assert set(updates).issubset(_EDITABLE_ITEM_COLUMNS), f"unexpected editable field(s): {set(updates) - _EDITABLE_ITEM_COLUMNS}"
 
         # Converted to cents (matching row["price"]'s storage) before any comparison
         # below — comparing a reais float against a cents int would make every price

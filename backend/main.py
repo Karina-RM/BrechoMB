@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -9,12 +10,14 @@ from backend.routers import admin, items, owners, reports, sales, suppliers
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 PHOTOS_DIR.mkdir(parents=True, exist_ok=True)
 
-app = FastAPI(title="Brechó")
 
-
-@app.on_event("startup")
-def on_startup() -> None:
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     init_db()
+    yield
+
+
+app = FastAPI(title="Brechó", lifespan=lifespan)
 
 
 @app.get("/api/health")
